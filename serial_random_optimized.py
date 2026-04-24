@@ -23,55 +23,137 @@ import pyqtgraph as pg
 
 # ==================== 应用样式 ====================
 APP_STYLE = """
-QMainWindow, QWidget { background-color: #1e1e24; color: #e0e0e0; }
+QMainWindow, QWidget { 
+    background-color: #1a1a20; 
+    color: #e0e0e0; 
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
 QGroupBox { 
     font-weight: bold; 
-    border: 1px solid #3a3a45; 
-    border-radius: 6px; 
-    margin-top: 8px; 
-    padding-top: 10px; 
+    font-size: 13px;
+    border: 1px solid #2d2d35; 
+    border-radius: 8px; 
+    margin-top: 10px; 
+    padding-top: 14px; 
 }
 QGroupBox::title { 
     subcontrol-origin: margin; 
-    left: 10px; 
-    padding: 0 4px; 
-    color: #a0a0b0; 
+    left: 12px; 
+    padding: 0 6px; 
+    color: #88a0c8; 
+    font-size: 12px;
 }
 QComboBox, QTextEdit, QLineEdit, QSpinBox { 
-    background-color: #2a2a32; 
-    border: 1px solid #3a3a45; 
-    border-radius: 4px; 
-    padding: 6px; 
-    color: #e0e0e0; 
+    background-color: #25252d; 
+    border: 1px solid #353540; 
+    border-radius: 6px; 
+    padding: 8px 12px; 
+    color: #e8e8f0; 
+    font-size: 13px;
+    selection-background-color: #3a506b;
+    selection-color: white;
+}
+QComboBox::drop-down {
+    border: none;
+    background: transparent;
+}
+QComboBox QAbstractItemView {
+    background-color: #25252d;
+    border: 1px solid #353540;
+    border-radius: 6px;
+    padding: 4px;
+    color: #e8e8f0;
+    font-size: 13px;
+    selection-background-color: #3a506b;
+    selection-color: white;
+    outline: none;
+}
+QComboBox QAbstractItemView::item {
+    height: 28px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+QComboBox QAbstractItemView::item:hover {
+    background-color: #3a506b;
+}
+QLabel {
+    color: #ccccd8;
+    font-size: 13px;
 }
 QPushButton { 
     background-color: #3a506b; 
     color: white; 
     border: none; 
-    border-radius: 4px; 
-    padding: 8px 16px; 
-    font-weight: bold; 
+    border-radius: 6px; 
+    padding: 10px 18px; 
+    font-weight: 600;
+    font-size: 13px;
 }
-QPushButton:hover { background-color: #4a6fa5; }
-QPushButton:pressed { background-color: #2c3e50; }
+QPushButton:hover { 
+    background-color: #4a6fa5; 
+}
+QPushButton:pressed { 
+    background-color: #2c3e50; 
+}
 QPushButton#saveBtn { background-color: #2d6a4f; }
+QPushButton#saveBtn:hover { background-color: #3a7a5f; }
 QProgressBar { 
-    border: 1px solid #3a3a45; 
-    border-radius: 4px; 
-    background: #2a2a32; 
+    border: 1px solid #353540; 
+    border-radius: 8px; 
+    background: #25252d; 
+    height: 20px;
+    text-align: center;
 }
 QProgressBar::chunk { 
-    background: #00ff88; 
-    border-radius: 3px; 
+    background: linear-gradient(to right, #00c9a7, #00ff88); 
+    border-radius: 8px; 
+}
+QTextEdit {
+    font-family: 'Consolas', 'Monaco', 'Menlo', monospace;
 }
 QScrollBar:vertical { 
-    background: #2a2a32; 
-    width: 8px; 
+    background: #25252d; 
+    width: 10px; 
+    border-radius: 4px;
 }
 QScrollBar::handle:vertical { 
     background: #4a4a5a; 
     border-radius: 4px; 
-    min-height: 20px; 
+    min-height: 30px; 
+}
+QScrollBar::handle:vertical:hover { 
+    background: #5a5a6a; 
+}
+QTabWidget::pane {
+    border: 1px solid #2d2d35;
+    border-radius: 8px;
+    margin-top: -1px;
+    background-color: #1e1e24;
+}
+QTabBar::tab {
+    background-color: #25252d;
+    color: #a0a0b0;
+    padding: 10px 20px;
+    margin-right: 4px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    border: 1px solid #353540;
+    border-bottom: none;
+}
+QTabBar::tab:selected {
+    background-color: #3a506b;
+    color: white;
+    border-color: #4a6fa5;
+}
+QRadioButton {
+    color: #ccccd8;
+    font-size: 13px;
+    spacing: 6px;
+}
+QCheckBox {
+    color: #ccccd8;
+    font-size: 13px;
+    spacing: 6px;
 }
 """
 
@@ -289,6 +371,99 @@ class RandomnessAnalyzer:
         }
     
     @staticmethod
+    def monobit_test(data: np.ndarray) -> dict:
+        """单一比特测试（适用于bit流数据）"""
+        if len(data) < 100:
+            return {"passed": False, "statistic": 0, "msg": "数据量不足"}
+        
+        # 将字节转换为比特流
+        bits = np.unpackbits(data.astype(np.uint8))
+        ones_count = np.sum(bits)
+        n = len(bits)
+        p = ones_count / n
+        
+        # 计算统计量
+        s = abs(ones_count - n/2) / np.sqrt(n/4)
+        
+        # 95%置信水平临界值为1.96
+        passed = s < 1.96
+        
+        return {
+            "passed": passed,
+            "statistic": s,
+            "balance": p,
+            "msg": f"比特平衡={p:.3f} {'通过' if passed else '不通过'}"
+        }
+    
+    @staticmethod
+    def frequency_test(data: np.ndarray) -> dict:
+        """频率测试 - 检查0-127与128-255的平衡性"""
+        if len(data) < 100:
+            return {"passed": False, "statistic": 0, "msg": "数据量不足"}
+        
+        # 统计小于128和大于等于128的数量
+        low_count = np.sum(data < 128)
+        high_count = len(data) - low_count
+        
+        # 计算卡方统计量
+        expected = len(data) / 2
+        chi2 = ((low_count - expected) ** 2 + (high_count - expected) ** 2) / expected
+        passed = chi2 < 3.84  # 95%置信水平，自由度为1
+        
+        return {
+            "passed": passed,
+            "statistic": chi2,
+            "ratio": low_count / len(data),
+            "msg": f"高低比={(low_count/len(data)):.3f} {'通过' if passed else '不通过'}"
+        }
+    
+    @staticmethod  
+    def serial_correlation_test(data: np.ndarray) -> dict:
+        """串行相关性测试"""
+        if len(data) < 100:
+            return {"passed": False, "correlation": 0, "msg": "数据量不足"}
+        
+        # 计算相邻字节的相关系数
+        if len(data) > 1:
+            x = data[:-1].astype(np.float64)
+            y = data[1:].astype(np.float64)
+            correlation = np.corrcoef(x, y)[0, 1]
+            passed = abs(correlation) < 0.1
+        else:
+            correlation = 0
+            passed = True
+            
+        return {
+            "passed": passed,
+            "correlation": correlation,
+            "msg": f"相邻相关={correlation:.3f} {'通过' if passed else '不通过'}"
+        }
+    
+    @staticmethod
+    def spectral_test(data: np.ndarray) -> dict:
+        """频谱测试 - 快速傅里叶变换分析"""
+        if len(data) < 128:
+            return {"passed": False, "peak_ratio": 0, "msg": "数据量不足128字节"}
+        
+        # 执行FFT
+        fft_data = np.fft.fft(data.astype(np.float64))
+        magnitude = np.abs(fft_data[:len(fft_data)//2])  # 只取一半
+        
+        # 检查是否有明显的峰值
+        mean_mag = np.mean(magnitude)
+        max_mag = np.max(magnitude)
+        peak_ratio = max_mag / mean_mag
+        
+        # 对于随机数据，峰值不应该太高
+        passed = peak_ratio < 10.0
+        
+        return {
+            "passed": passed,
+            "peak_ratio": peak_ratio,
+            "msg": f"频谱峰值比={peak_ratio:.2f} {'通过' if passed else '可能有周期性'}"
+        }
+    
+    @staticmethod
     def get_statistics(data: np.ndarray) -> Dict[str, float]:
         """计算基本统计信息"""
         if len(data) == 0:
@@ -302,7 +477,9 @@ class RandomnessAnalyzer:
             "range": float(np.max(data) - np.min(data)),
             "median": float(np.median(data)),
             "variance": float(np.var(data)),
-            "cv": float(np.std(data) / (np.mean(data) + 1e-10))  # 变异系数
+            "cv": float(np.std(data) / (np.mean(data) + 1e-10)),  # 变异系数
+            "skewness": float(np.mean(((data - np.mean(data)) / (np.std(data) + 1e-10)) ** 3)),  # 偏度
+            "kurtosis": float(np.mean(((data - np.mean(data)) / (np.std(data) + 1e-10)) ** 4))   # 峰度
         }
     
     @staticmethod
@@ -312,37 +489,61 @@ class RandomnessAnalyzer:
         
         # 卡方检验评分
         if results["chi_square"]["passed"]:
-            score += 30
+            score += 20
         elif results["chi_square"].get("statistic", 999) < 350:
-            score += 15
+            score += 10
         
         # 游程检验评分
         if results["runs"]["passed"]:
-            score += 25
+            score += 15
         elif results["runs"].get("z_score", 99) < 3.0:
-            score += 12
+            score += 7
         
         # 自相关检验评分
         if results["autocorr"]["passed"]:
-            score += 25
+            score += 15
         elif results["autocorr"].get("max_corr", 1) < 0.15:
-            score += 12
+            score += 7
         
         # 信息熵评分
         entropy = results["entropy"].get("entropy", 0)
         if entropy >= 7.9:
-            score += 20
+            score += 12
         elif entropy >= 7.5:
-            score += 15
+            score += 8
         elif entropy >= 7.0:
-            score += 10
+            score += 5
+        
+        # 单一比特测试评分
+        if results.get("monobit", {}).get("passed", False):
+            score += 8
+        elif results.get("monobit", {}).get("statistic", 99) < 2.5:
+            score += 4
+        
+        # 频率测试评分
+        if results.get("frequency", {}).get("passed", False):
+            score += 8
+        elif results.get("frequency", {}).get("statistic", 99) < 4.0:
+            score += 4
+        
+        # 串行相关性测试评分
+        if results.get("serial_corr", {}).get("passed", False):
+            score += 8
+        elif abs(results.get("serial_corr", {}).get("correlation", 1)) < 0.15:
+            score += 4
+        
+        # 频谱测试评分
+        if results.get("spectral", {}).get("passed", False):
+            score += 8
+        elif results.get("spectral", {}).get("peak_ratio", 99) < 12.0:
+            score += 4
         
         # 确定等级
-        if score >= 90:
+        if score >= 85:
             level = "优秀"
-        elif score >= 75:
+        elif score >= 70:
             level = "良好"
-        elif score >= 60:
+        elif score >= 50:
             level = "合格"
         else:
             level = "待优化"
@@ -357,6 +558,14 @@ class RandomnessAnalyzer:
             issues.append("相邻数据相关性过高")
         if entropy < 7.5:
             issues.append("信息熵偏低")
+        if not results.get("monobit", {}).get("passed", False):
+            issues.append("比特平衡性不足")
+        if not results.get("frequency", {}).get("passed", False):
+            issues.append("高低字节分布不均")
+        if not results.get("serial_corr", {}).get("passed", False):
+            issues.append("串行相关性过高")
+        if not results.get("spectral", {}).get("passed", False):
+            issues.append("频谱可能存在周期性")
         
         if not issues:
             issues.append("各项指标符合随机性要求")
@@ -373,8 +582,9 @@ class MainWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("专业串口随机数分析助手 - 优化版")
-        self.resize(1200, 850)
+        self.setWindowTitle("🔬 专业串口随机数分析助手 v2.0")
+        self.resize(1350, 900)
+        self.setMinimumSize(1000, 700)
         
         # 初始化成员变量
         self.is_open = False
@@ -384,6 +594,8 @@ class MainWindow(QMainWindow):
         self.tx_format = "HEX"
         self.auto_scroll = True
         self.last_update_time = datetime.now()
+        self._last_stats_count = 0
+        self._last_stats_time = datetime.now()
         
         # 初始化界面
         self.init_ui()
@@ -418,63 +630,119 @@ class MainWindow(QMainWindow):
         
     def create_serial_control_ui(self, parent_layout):
         """创建串口控制UI"""
-        # 串口选择行
-        top_layout = QHBoxLayout()
+        # 串口控制组框
+        serial_group = QGroupBox("串口设置")
+        serial_group.setStyleSheet("""
+            QGroupBox {
+                margin-top: 4px;
+                padding-top: 12px;
+            }
+        """)
+        serial_layout = QVBoxLayout()
         
+        # 第一行：端口和波特率选择
+        port_row = QHBoxLayout()
+        
+        port_row.addWidget(QLabel("端口:"))
         self.port_combo = QComboBox()
+        self.port_combo.setMinimumWidth(250)
+        port_row.addWidget(self.port_combo, 2)
+        
+        port_row.addSpacing(10)
+        port_row.addWidget(QLabel("波特率:"))
         self.baud_combo = QComboBox()
+        self.baud_combo.setMinimumWidth(120)
         self.baud_combo.addItems(["9600", "19200", "38400", "57600", 
                                 "115200", "230400", "460800", "921600"])
         self.baud_combo.setCurrentText("115200")
+        port_row.addWidget(self.baud_combo, 1)
         
-        self.refresh_btn = QPushButton("刷新端口")
-        self.open_btn = QPushButton("打开串口")
-        self.status_label = QLabel("状态: 就绪")
-        self.status_label.setStyleSheet("color: #7f8c8d; font-style: italic;")
+        port_row.addSpacing(20)
+        self.refresh_btn = QPushButton("🔁 刷新端口")
+        self.refresh_btn.setToolTip("刷新可用串口列表")
+        port_row.addWidget(self.refresh_btn)
         
-        top_layout.addWidget(QLabel("端口:"))
-        top_layout.addWidget(self.port_combo, 2)
-        top_layout.addWidget(QLabel("波特率:"))
-        top_layout.addWidget(self.baud_combo, 1)
-        top_layout.addWidget(self.refresh_btn)
-        top_layout.addWidget(self.open_btn)
-        top_layout.addWidget(self.status_label)
+        self.open_btn = QPushButton("🔓 打开串口")
+        self.open_btn.setToolTip("打开/关闭串口连接")
+        self.open_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3a506b;
+                font-weight: bold;
+                padding: 8px 20px;
+            }
+            QPushButton:hover {
+                background-color: #4a6fa5;
+            }
+        """)
+        port_row.addWidget(self.open_btn)
         
-        parent_layout.addLayout(top_layout)
+        # 状态标签改进
+        self.status_label = QLabel("🔴 未连接")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                background-color: #2d3436;
+                color: #e74c3c;
+                font-weight: bold;
+                padding: 6px 16px;
+                border-radius: 6px;
+                border: 1px solid #444;
+                min-width: 120px;
+                text-align: center;
+            }
+        """)
+        port_row.addWidget(self.status_label)
         
-        # 格式选择行
-        fmt_layout = QHBoxLayout()
-        fmt_layout.addWidget(QLabel("接收格式:"))
+        port_row.addStretch()
+        serial_layout.addLayout(port_row)
         
+        # 第二行：格式设置和选项
+        fmt_row = QHBoxLayout()
+        
+        # 接收格式
+        fmt_row.addWidget(QLabel("接收格式:"))
+        self.rx_format_group = QHBoxLayout()
         for name in ["HEX", "DEC", "ASCII", "BIN"]:
             btn = QRadioButton(name)
+            btn.setToolTip(f"以{name}格式显示接收数据")
             btn.toggled.connect(lambda checked, n=name: self.set_rx_fmt(n) if checked else None)
-            fmt_layout.addWidget(btn)
+            self.rx_format_group.addWidget(btn)
             if name == "HEX":
                 btn.setChecked(True)
         
-        fmt_layout.addSpacing(20)
-        fmt_layout.addWidget(QLabel("发送格式:"))
+        fmt_row.addLayout(self.rx_format_group)
+        fmt_row.addSpacing(30)
         
+        # 发送格式
+        fmt_row.addWidget(QLabel("发送格式:"))
+        self.tx_format_group = QHBoxLayout()
         for name in ["HEX", "DEC", "ASCII", "BIN"]:
             btn = QRadioButton(name)
+            btn.setToolTip(f"以{name}格式发送数据")
             btn.toggled.connect(lambda checked, n=name: self.set_tx_fmt(n) if checked else None)
-            fmt_layout.addWidget(btn)
+            self.tx_format_group.addWidget(btn)
             if name == "HEX":
                 btn.setChecked(True)
         
-        fmt_layout.addStretch()
+        fmt_row.addLayout(self.tx_format_group)
+        fmt_row.addSpacing(30)
         
-        self.auto_scroll_cb = QCheckBox("自动滚动")
+        # 选项
+        self.auto_scroll_cb = QCheckBox("📜 自动滚动")
+        self.auto_scroll_cb.setToolTip("自动滚动到日志最新内容")
         self.auto_scroll_cb.setChecked(True)
-        self.auto_analyze_cb = QCheckBox("自动分析")
+        
+        self.auto_analyze_cb = QCheckBox("📊 自动分析")
+        self.auto_analyze_cb.setToolTip("自动执行随机性分析")
         self.auto_analyze_cb.setChecked(True)
         self.auto_analyze_cb.stateChanged.connect(self.on_auto_analyze_changed)
         
-        fmt_layout.addWidget(self.auto_scroll_cb)
-        fmt_layout.addWidget(self.auto_analyze_cb)
+        fmt_row.addWidget(self.auto_scroll_cb)
+        fmt_row.addWidget(self.auto_analyze_cb)
+        fmt_row.addStretch()
         
-        parent_layout.addLayout(fmt_layout)
+        serial_layout.addLayout(fmt_row)
+        serial_group.setLayout(serial_layout)
+        parent_layout.addWidget(serial_group)
         
         # 连接信号
         self.refresh_btn.clicked.connect(self.refresh_ports)
@@ -516,20 +784,66 @@ class MainWindow(QMainWindow):
         parent_layout.addWidget(splitter, 1)
         
         # 数据统计信息
-        stats_group = QGroupBox("实时统计信息")
+        stats_group = QGroupBox("📈 实时统计")
+        stats_group.setStyleSheet("""
+            QGroupBox {
+                margin-top: 8px;
+                padding-top: 14px;
+            }
+        """)
         stats_layout = QHBoxLayout()
         
-        self.data_count_label = QLabel("数据量: 0 字节")
-        self.data_rate_label = QLabel("接收速率: 0 B/s")
-        self.data_mean_label = QLabel("平均值: --")
-        self.data_std_label = QLabel("标准差: --")
-        self.data_range_label = QLabel("范围: --")
+        # 统计标签样式
+        stat_style = """
+            QLabel {
+                background-color: #25252d;
+                color: #e8e8f0;
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid #353540;
+                font-weight: 500;
+                font-size: 12px;
+                min-width: 120px;
+                text-align: center;
+            }
+        """
+        
+        self.data_count_label = QLabel("📊 数据量: 0 字节")
+        self.data_count_label.setStyleSheet(stat_style)
+        self.data_count_label.setToolTip("已接收数据的总字节数")
+        
+        self.data_rate_label = QLabel("⚡ 速率: 0 B/s")
+        self.data_rate_label.setStyleSheet(stat_style)
+        self.data_rate_label.setToolTip("数据接收速率")
+        
+        self.data_mean_label = QLabel("📊 平均值: --")
+        self.data_mean_label.setStyleSheet(stat_style)
+        self.data_mean_label.setToolTip("数据的平均值 (0-255)")
+        
+        self.data_std_label = QLabel("σ 标准差: --")
+        self.data_std_label.setStyleSheet(stat_style)
+        self.data_std_label.setToolTip("数据的标准差")
+        
+        self.data_range_label = QLabel("↔ 范围: --")
+        self.data_range_label.setStyleSheet(stat_style)
+        self.data_range_label.setToolTip("数据的最小值和最大值范围")
+        
+        # 添加更多统计标签
+        self.data_min_label = QLabel("📉 最小值: --")
+        self.data_min_label.setStyleSheet(stat_style)
+        self.data_min_label.setToolTip("数据的最小值")
+        
+        self.data_max_label = QLabel("📈 最大值: --")
+        self.data_max_label.setStyleSheet(stat_style)
+        self.data_max_label.setToolTip("数据的最大值")
         
         stats_layout.addWidget(self.data_count_label)
         stats_layout.addWidget(self.data_rate_label)
         stats_layout.addWidget(self.data_mean_label)
         stats_layout.addWidget(self.data_std_label)
         stats_layout.addWidget(self.data_range_label)
+        stats_layout.addWidget(self.data_min_label)
+        stats_layout.addWidget(self.data_max_label)
         stats_layout.addStretch()
         
         stats_group.setLayout(stats_layout)
@@ -572,10 +886,19 @@ class MainWindow(QMainWindow):
         # 自相关图
         self.plot_autocorr = pg.PlotWidget(title="自相关分析")
         self.setup_plot(self.plot_autocorr, "延迟阶数", "相关系数", (-1, 1))
+        self.plot_autocorr.setXRange(0, 50)  # 初始x范围
         self.plot_autocorr.addLine(y=0, pen=pg.mkPen('#666', style=Qt.PenStyle.DashLine))
         self.plot_autocorr.addLine(y=0.1, pen=pg.mkPen('#f39c12', style=Qt.PenStyle.DashLine))
         self.plot_autocorr.addLine(y=-0.1, pen=pg.mkPen('#f39c12', style=Qt.PenStyle.DashLine))
-        self.curve_autocorr = self.plot_autocorr.plot(pen=pg.mkPen('#9b59b6', width=2))
+        # 初始占位数据
+        x = np.arange(1, 51)
+        y = np.zeros(50)
+        self.curve_autocorr = self.plot_autocorr.plot(
+            x, y, 
+            pen=pg.mkPen('#9b59b6', width=2),
+            symbol='o', symbolSize=5, symbolBrush='#9b59b6',
+            name='自相关'
+        )
         
         # 添加标签页
         self.tab_widget.addTab(self.plot_time, "时域波形")
@@ -641,21 +964,79 @@ class MainWindow(QMainWindow):
         self.send_input = QTextEdit()
         self.send_input.setMaximumHeight(60)
         self.send_input.setFont(QFont("Menlo", 10))
-        self.send_input.setPlaceholderText("输入要发送的数据...")
+        self.send_input.setPlaceholderText("📝 输入要发送的数据 (支持HEX、DEC、ASCII、BIN格式)")
         
-        self.send_btn = QPushButton("发送")
-        self.send_btn.setStyleSheet("background-color: #2d6a4f;")
-        self.save_btn = QPushButton("保存数据")
-        self.save_btn.setStyleSheet("background-color: #3498db;")
-        self.analyze_btn = QPushButton("立即分析")
-        self.clear_btn = QPushButton("清空所有")
-        self.clear_btn.setStyleSheet("background-color: #e74c3c;")
+        self.send_btn = QPushButton("📤 发送")
+        self.send_btn.setToolTip("发送数据到串口")
+        self.send_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2d6a4f;
+                padding: 10px 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #3a7a5f;
+            }
+        """)
+        
+        self.save_btn = QPushButton("💾 保存数据")
+        self.save_btn.setToolTip("保存接收到的数据到文件")
+        self.save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                padding: 10px 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #4598eb;
+            }
+        """)
+        
+        self.analyze_btn = QPushButton("📊 分析")
+        self.analyze_btn.setToolTip("立即分析随机性")
+        self.analyze_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9b59b6;
+                padding: 10px 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #ab69c6;
+            }
+        """)
+        
+        self.clear_btn = QPushButton("🗑️ 清空")
+        self.clear_btn.setToolTip("清空所有数据和图表")
+        self.clear_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                padding: 10px 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #f75c4c;
+            }
+        """)
+        
+        self.exit_btn = QPushButton("🚪 退出")
+        self.exit_btn.setToolTip("退出应用程序")
+        self.exit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #c0392b;
+                padding: 10px 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #d0493b;
+            }
+        """)
         
         btn_layout.addWidget(self.send_input, 3)
         btn_layout.addWidget(self.send_btn)
         btn_layout.addWidget(self.save_btn)
         btn_layout.addWidget(self.analyze_btn)
         btn_layout.addWidget(self.clear_btn)
+        btn_layout.addWidget(self.exit_btn)
         
         parent_layout.addLayout(btn_layout)
         
@@ -664,6 +1045,7 @@ class MainWindow(QMainWindow):
         self.save_btn.clicked.connect(self.save_data)
         self.analyze_btn.clicked.connect(self.manual_analyze)
         self.clear_btn.clicked.connect(self.clear_all)
+        self.exit_btn.clicked.connect(self.safe_exit)
     
     # ========== 核心功能方法 ==========
     
@@ -728,9 +1110,30 @@ class MainWindow(QMainWindow):
         try:
             self.worker.start()
             self.is_open = True
-            self.open_btn.setText("关闭串口")
-            self.open_btn.setStyleSheet("background-color: #b54444;")
-            self.status_label.setText(f"状态: 已连接 {port_name} @ {baudrate}")
+            self.open_btn.setText("🔒 关闭串口")
+            self.open_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #b54444;
+                    font-weight: bold;
+                    padding: 8px 20px;
+                }
+                QPushButton:hover {
+                    background-color: #c05454;
+                }
+            """)
+            self.status_label.setText(f"🟢 已连接 {port_name}@{baudrate}")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    background-color: #1e3a2d;
+                    color: #00ff88;
+                    font-weight: bold;
+                    padding: 6px 16px;
+                    border-radius: 6px;
+                    border: 1px solid #2d6a4f;
+                    min-width: 120px;
+                    text-align: center;
+                }
+            """)
             
             # 启动相关定时器
             if self.auto_analyze_cb.isChecked():
@@ -738,7 +1141,7 @@ class MainWindow(QMainWindow):
             self.stats_timer.start()
             self.plot_update_timer.start()
             
-            self.add_system_msg(f"成功连接到 {port_name} @ {baudrate}bps")
+            self.add_system_msg(f"✅ 成功连接到 {port_name} @ {baudrate}bps")
             
         except Exception as e:
             QMessageBox.critical(self, "连接失败", f"无法打开串口: {e}")
@@ -749,9 +1152,30 @@ class MainWindow(QMainWindow):
             self.worker.stop()
         
         self.is_open = False
-        self.open_btn.setText("打开串口")
-        self.open_btn.setStyleSheet("")
-        self.status_label.setText("状态: 已断开")
+        self.open_btn.setText("🔓 打开串口")
+        self.open_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3a506b;
+                font-weight: bold;
+                padding: 8px 20px;
+            }
+            QPushButton:hover {
+                background-color: #4a6fa5;
+            }
+        """)
+        self.status_label.setText("🔴 未连接")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                background-color: #2d3436;
+                color: #e74c3c;
+                font-weight: bold;
+                padding: 6px 16px;
+                border-radius: 6px;
+                border: 1px solid #444;
+                min-width: 120px;
+                text-align: center;
+            }
+        """)
         
         # 停止定时器
         self.analysis_timer.stop()
@@ -763,9 +1187,30 @@ class MainWindow(QMainWindow):
     def on_port_closed(self):
         """串口关闭回调"""
         self.is_open = False
-        self.open_btn.setText("打开串口")
-        self.open_btn.setStyleSheet("")
-        self.status_label.setText("状态: 连接异常")
+        self.open_btn.setText("🔓 打开串口")
+        self.open_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3a506b;
+                font-weight: bold;
+                padding: 8px 20px;
+            }
+            QPushButton:hover {
+                background-color: #4a6fa5;
+            }
+        """)
+        self.status_label.setText("⚠️ 连接异常")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                background-color: #3a2a2a;
+                color: #f39c12;
+                font-weight: bold;
+                padding: 6px 16px;
+                border-radius: 6px;
+                border: 1px solid #5a3a3a;
+                min-width: 120px;
+                text-align: center;
+            }
+        """)
     
     def handle_data(self, data_bytes: bytes):
         """处理接收到的数据"""
@@ -791,7 +1236,11 @@ class MainWindow(QMainWindow):
     def deferred_plot_update(self):
         """延迟的图表更新（避免过于频繁）"""
         if self.plot_update_pending:
-            self.update_all_plots()
+            try:
+                self.update_all_plots()
+            except Exception as e:
+                # 防止图表更新错误导致程序崩溃
+                self.add_system_msg(f"图表更新错误: {str(e)[:50]}...")
             self.plot_update_pending = False
     
     def update_realtime_stats(self):
@@ -805,12 +1254,29 @@ class MainWindow(QMainWindow):
         if len(data) > 0:
             stats = RandomnessAnalyzer.get_statistics(data)
             
-            self.data_mean_label.setText(f"平均值: {stats['mean']:.1f}")
-            self.data_std_label.setText(f"标准差: {stats['std']:.1f}")
-            self.data_range_label.setText(f"范围: {int(stats['min'])}-{int(stats['max'])}")
+            # 更新所有统计标签
+            self.data_mean_label.setText(f"📊 平均值: {stats['mean']:.1f}")
+            self.data_std_label.setText(f"σ 标准差: {stats['std']:.1f}")
+            self.data_range_label.setText(f"↔ 范围: {int(stats['min'])}-{int(stats['max'])}")
+            self.data_min_label.setText(f"📉 最小值: {int(stats['min'])}")
+            self.data_max_label.setText(f"📈 最大值: {int(stats['max'])}")
         
-        # 清空数据速率显示逻辑需要在更完整的数据流中实现
-        # 这里简化处理
+        # 计算数据接收速率（简化版本）
+        # 在实际应用中，可以记录时间和数据量来计算实际速率
+        # 这里为简化，显示最近1秒的变化
+        current_count = len(self.data_buffer)
+        current_time = datetime.now()
+        
+        # 计算简单的增量（这里假设每秒调用一次）
+        if hasattr(self, '_last_stats_count') and hasattr(self, '_last_stats_time'):
+            time_diff = (current_time - self._last_stats_time).total_seconds()
+            if time_diff > 0.1:  # 避免除零
+                data_diff = current_count - self._last_stats_count
+                rate = data_diff / time_diff
+                self.data_rate_label.setText(f"⚡ 速率: {rate:.0f} B/s")
+        
+        self._last_stats_count = current_count
+        self._last_stats_time = current_time
     
     def update_data_count(self):
         """更新数据量显示"""
@@ -842,15 +1308,23 @@ class MainWindow(QMainWindow):
             self.scatter_plot.setData(x, y)
         
         # 4. 更新自相关图
-        if len(data) > 50:
-            data_norm = (data - np.mean(data)) / (np.std(data) + 1e-10)
-            max_lag = min(50, len(data_norm) // 10)
-            
-            if len(data_norm) > max_lag:
-                lags = np.arange(max_lag + 1)
-                # 向量化计算
-                corr = np.array([np.mean(data_norm[:-lag] * data_norm[lag:]) for lag in lags])
-                self.curve_autocorr.setData(corr)
+        self.curve_autocorr.setData([])  # 先清空
+        if len(data) > 100:  # 需要更多数据
+            try:
+                data_norm = (data - np.mean(data)) / (np.std(data) + 1e-10)
+                max_lag = min(50, len(data_norm) // 10)
+                
+                if max_lag >= 10:  # 确保有足够的延迟阶数
+                    lags = np.arange(1, max_lag + 1)  # 从1开始，避免lag=0的问题
+                    # 向量化计算
+                    corr = np.array([np.mean(data_norm[:-lag] * data_norm[lag:]) for lag in lags])
+                    self.curve_autocorr.setData(corr, 
+                                                pen=pg.mkPen('#9b59b6', width=2),
+                                                symbol='o', symbolSize=5, symbolBrush='#9b59b6')
+                    # 设置x范围
+                    self.plot_autocorr.setXRange(1, max_lag)
+            except Exception as e:
+                pass  # 忽略自相关计算错误
     
     def send_data(self):
         """发送数据"""
@@ -1023,6 +1497,10 @@ class MainWindow(QMainWindow):
             "runs": RandomnessAnalyzer.runs_test(analysis_data),
             "autocorr": RandomnessAnalyzer.autocorrelation_test(analysis_data),
             "entropy": RandomnessAnalyzer.entropy_test(analysis_data),
+            "monobit": RandomnessAnalyzer.monobit_test(analysis_data),
+            "frequency": RandomnessAnalyzer.frequency_test(analysis_data),
+            "serial_corr": RandomnessAnalyzer.serial_correlation_test(analysis_data),
+            "spectral": RandomnessAnalyzer.spectral_test(analysis_data),
         }
         
         # 计算综合评分
@@ -1048,7 +1526,11 @@ class MainWindow(QMainWindow):
         self.issues_label.setText(issues_text)
         
         # 日志记录
-        log_lines = [results[k]["msg"] for k in ["chi_square", "runs", "autocorr", "entropy"]]
+        test_keys = ["chi_square", "runs", "autocorr", "entropy", "monobit", "frequency", "serial_corr"]
+        log_lines = []
+        for key in test_keys:
+            if key in results and results[key].get("msg"):
+                log_lines.append(results[key]["msg"])
         self.add_system_msg(f"分析 {range_size:,} 字节: {' | '.join(log_lines)}")
     
     def save_data(self):
@@ -1159,6 +1641,19 @@ class MainWindow(QMainWindow):
         """处理错误"""
         QMessageBox.critical(self, "串口异常", error_msg)
         self.close_serial()
+    
+    def safe_exit(self):
+        """安全退出程序"""
+        reply = QMessageBox.question(
+            self,
+            "确认退出",
+            "确定要退出程序吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.close()
     
     def closeEvent(self, event):
         """窗口关闭事件"""
