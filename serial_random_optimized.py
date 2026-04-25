@@ -342,15 +342,22 @@ class SerialWorker(QThread):
     port_closed = pyqtSignal()
 
     def __init__(self, port_name: str, baudrate: int,
-                 bytesize: int = 8, parity: str = 'N', stopbits: float = 1):
+                 bytesize: int = 8, parity: str = 'N', stopbits: float = 1,
+                 accumulate_mode: bool = True, buffer_timeout: float = 0.05,
+                 max_buffer_size: int = 1048576):
         super().__init__()
         self.port_name = port_name
         self.baudrate = baudrate
         self.bytesize = bytesize
         self.parity = parity
         self.stopbits = stopbits
+        self.accumulate_mode = accumulate_mode
+        self.buffer_timeout = buffer_timeout
+        self.max_buffer_size = max_buffer_size  # 最大缓冲区大小，防止内存溢出
         self.running = True
         self.serial_port: Optional[serial.Serial] = None
+        self.accumulated_buffer = bytearray()
+        self.last_data_time = 0
 
     def run(self):
         try:
@@ -360,16 +367,17 @@ class SerialWorker(QThread):
                 bytesize=self.bytesize,
                 parity=self.parity,
                 stopbits=self.stopbits,
-                timeout=0.05,
+                timeout=self.buffer_timeout,
                 write_timeout=1.0
             )
             self.serial_port.flushInput()
             while self.running:
                 try:
-                    if self.serial_port.in_waiting > 0:
-                        data = self.serial_port.read(self.serial_port.in_waiting)
-                        if data:
-                            self.data_received.emit(data)
+                    if self.accumulate_mode:
+                        self._read_with_accumulation()
+                    else:
+                        self._read_direct()
+                        
                 except serial.SerialException as e:
                     if self.running:
                         self.error_occurred.emit(f"串口读取错误: {e}")
@@ -380,8 +388,46 @@ class SerialWorker(QThread):
         finally:
             self._safe_close()
 
+    def _read_direct(self):
+        if self.serial_port.in_waiting > 0:
+            # 读取所有可用数据
+            data = self.serial_port.read(self.serial_port.in_waiting)
+            if data:
+                self.data_received.emit(data)
+            # 如果还有更多数据，继续读取（防止缓冲区溢出）
+            while self.serial_port.in_waiting > 0 and len(data) < 65536:
+                more_data = self.serial_port.read(self.serial_port.in_waiting)
+                if more_data:
+                    data += more_data
+                    self.data_received.emit(more_data)
+
+    def _read_with_accumulation(self):
+        if self.serial_port.in_waiting > 0:
+            data = self.serial_port.read(self.serial_port.in_waiting)
+            if data:
+                self.accumulated_buffer.extend(data)
+                self.last_data_time = datetime.now().timestamp()
+                
+                # 防止缓冲区过大
+                if len(self.accumulated_buffer) > self.max_buffer_size:
+                    self.data_received.emit(bytes(self.accumulated_buffer[:self.max_buffer_size]))
+                    self.accumulated_buffer = bytearray()
+        else:
+            if self.accumulated_buffer and self.last_data_time > 0:
+                current_time = datetime.now().timestamp()
+                elapsed = current_time - self.last_data_time
+                if elapsed >= self.buffer_timeout:
+                    if self.accumulated_buffer:
+                        self.data_received.emit(bytes(self.accumulated_buffer))
+                        self.accumulated_buffer.clear()
+                        self.last_data_time = 0  # 重置时间戳
+
     def _safe_close(self):
         try:
+            if self.accumulated_buffer:
+                self.data_received.emit(bytes(self.accumulated_buffer))
+                self.accumulated_buffer.clear()
+            
             if self.serial_port and self.serial_port.is_open:
                 self.serial_port.close()
                 self.port_closed.emit()
@@ -666,6 +712,13 @@ class MainWindow(QMainWindow):
         self.stop_bits_combo.setCurrentText("1")
         self.stop_bits_combo.setMinimumHeight(42)
         layout.addWidget(self.stop_bits_combo)
+
+        # 特殊选项：累积模式
+        layout.addSpacing(20)
+        self.cb_accumulate_mode = QCheckBox("累积模式 (处理长数据)")
+        self.cb_accumulate_mode.setChecked(True)
+        self.cb_accumulate_mode.setToolTip("启用时，等待数据间隔超时后发送完整数据包")
+        layout.addWidget(self.cb_accumulate_mode)
 
         layout.addSpacing(24)
         self.btn_connect = QPushButton("连接串口")
@@ -1001,7 +1054,12 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            self.worker = SerialWorker(port_name, baudrate, bytesize, parity, stopbits)
+            accumulate_mode = self.cb_accumulate_mode.isChecked()
+            self.worker = SerialWorker(
+                port_name, baudrate, bytesize, parity, stopbits,
+                accumulate_mode=accumulate_mode, buffer_timeout=0.05,
+                max_buffer_size=1048576  # 1MB缓冲区
+            )
             self.worker.data_received.connect(self.handle_data)
             self.worker.error_occurred.connect(self.handle_error)
             self.worker.port_closed.connect(self.on_port_closed)
