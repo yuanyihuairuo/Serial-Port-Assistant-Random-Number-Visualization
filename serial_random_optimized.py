@@ -23,15 +23,15 @@ import pyqtgraph as pg
 # ==================== 全局样式 ====================
 APP_STYLE = """
 QMainWindow, QWidget {
-    background-color: #0a0a0f;
+    background-color: #121212;
     color: #ffffff;
-    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    font-family: 'Arial', 'Microsoft YaHei', sans-serif;
     font-size: 13px;
 }
 
 #sidebarFrame {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #111114, stop:1 #0a0a0f);
-    border-right: 1px solid #1c1c1c;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a1a1a, stop:1 #151515);
+    border-right: 1px solid #333333;
     padding: 24px;
 }
 
@@ -45,7 +45,7 @@ QMainWindow, QWidget {
 
 #sidebarSubtitle {
     font-size: 12px;
-    color: #cccccc;
+    color: #999999;
     margin-bottom: 32px;
 }
 
@@ -60,7 +60,7 @@ QLabel.formLabel {
 
 QComboBox {
     background-color: #1a1a1a;
-    border: 2px solid #2a2a2a;
+    border: 2px solid #444444;
     border-radius: 8px;
     padding: 10px 14px;
     color: #ffffff;
@@ -69,15 +69,15 @@ QComboBox {
     font-weight: 500;
 }
 
-QComboBox:hover { border-color: #4a4a4a; }
-QComboBox:focus { border-color: #666666; background-color: #1c1c1c; }
+QComboBox:hover { border-color: #666666; }
+QComboBox:focus { border-color: #777777; background-color: #222222; }
 QComboBox::drop-down { border: none; width: 30px; }
 QComboBox::down-arrow {
     image: none; border-left: 6px solid transparent; border-right: 6px solid transparent;
     border-top: 8px solid #ffffff; margin-right: 8px;
 }
 QComboBox QAbstractItemView {
-    background-color: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+    background-color: #1a1a1a; border: 1px solid #444444; border-radius: 8px;
     padding: 4px; color: #ffffff; selection-background-color: #333333; outline: none;
 }
 
@@ -136,31 +136,33 @@ QPushButton[btnClass="primary"]:checked {
 
 
 #btnConnect {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #333333, stop:1 #444444);
-    border: 2px solid #2a2a2a;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #555555, stop:1 #666666);
+    border: 2px solid #666666;
     padding: 12px;
     min-height: 46px;
     letter-spacing: 0.5px;
     border-radius: 8px;
     color: #ffffff;
+    margin-bottom: 8px;
 }
 #btnConnect:hover { 
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #444444, stop:1 #333333);
-    border-color: #666666;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #666666, stop:1 #555555);
+    border-color: #777777;
     color: #ffffff;
 }
 #btnConnect:pressed { background: #2a2a2a; }
 
 #btnReconnect {
-    background-color: #333333;
+    background-color: #444444;
     color: #ffffff;
-    border: 2px solid #2a2a2a;
+    border: 2px solid #555555;
     border-radius: 8px;
     padding: 10px;
     min-height: 42px;
     font-weight: 500;
+    margin-top: 8px;
 }
-#btnReconnect:hover { background-color: #444444; color: #ffffff; border-color: #666666; }
+#btnReconnect:hover { background-color: #555555; color: #ffffff; border-color: #666666; }
 
 #btnExit {
     background-color: #333333;
@@ -174,16 +176,16 @@ QPushButton[btnClass="primary"]:checked {
 #btnExit:hover { background-color: #444444; color: #ffffff; border-color: #666666; }
 
 #topNavBar {
-    background-color: #0f0f12;
-    border-bottom: 1px solid #1c1c1c;
+    background-color: #1a1a1a;
+    border-bottom: 1px solid #333333;
     padding: 16px 32px;
 }
 
-#mainContent { background-color: #0a0a0f; }
+#mainContent { background-color: #121212; }
 
 #terminalDisplay {
-    background-color: #0f0f12;
-    border: none;
+    background-color: #1a1a1a;
+    border: 1px solid #333333;
     border-radius: 12px;
     padding: 16px;
     font-family: 'Consolas', 'Menlo', monospace;
@@ -192,13 +194,13 @@ QPushButton[btnClass="primary"]:checked {
 }
 
 #inputAreaFrame {
-    background-color: #0f0f12;
-    border-top: 1px solid #1c1c1c;
+    background-color: #1a1a1a;
+    border-top: 1px solid #333333;
     padding: 20px 32px;
 }
 #sendInput {
-    background-color: #0f0f12;
-    border: 2px solid #2a2a2a;
+    background-color: #1a1a1a;
+    border: 2px solid #333333;
     border-radius: 10px;
     padding: 12px;
     font-family: 'Consolas', monospace;
@@ -206,7 +208,7 @@ QPushButton[btnClass="primary"]:checked {
     color: #ffffff;
     min-height: 70px;
 }
-#sendInput:focus { border-color: #666666; background-color: #1a1a1a; }
+#sendInput:focus { border-color: #666666; background-color: #222222; }
 
 #btnSend {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #333333, stop:1 #444444);
@@ -222,8 +224,8 @@ QPushButton[btnClass="primary"]:checked {
 #btnSend:disabled { background-color: #1a1a1a; color: #888888; border-color: #444444; }
 
 #statusBarFrame {
-    background-color: #0f0f12;
-    border-top: 1px solid #1c1c1c;
+    background-color: #1a1a1a;
+    border-top: 1px solid #333333;
     padding: 12px 32px;
     font-size: 12px;
     color: #ffffff;
@@ -725,7 +727,7 @@ class MainWindow(QMainWindow):
         self.btn_connect.setObjectName("btnConnect")
         layout.addWidget(self.btn_connect)
 
-        layout.addSpacing(12)
+        layout.addSpacing(8)
         self.btn_reconnect = QPushButton("重新扫描")
         self.btn_reconnect.setObjectName("btnReconnect")
         layout.addWidget(self.btn_reconnect)
@@ -737,15 +739,8 @@ class MainWindow(QMainWindow):
         frame.setObjectName("topNavBar")
         layout = QHBoxLayout(frame)
         layout.setContentsMargins(32, 16, 32, 16)
-        layout.addSpacing(20)
 
-        search_box = QLineEdit()
-        search_box.setPlaceholderText("🔍 搜索记录...")
-        search_box.setReadOnly(True)
-        search_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        search_box.setObjectName("searchBox")
-        layout.addWidget(search_box, 1)
-
+        layout.addStretch()
         self.mode_switcher = QComboBox()
         self.mode_switcher.addItems(["📡 终端收发", "📊 随机数分析"])
         self.mode_switcher.currentIndexChanged.connect(self.on_mode_changed)
@@ -766,7 +761,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.chat_box, 1)
 
         toolbar = QWidget()
-        toolbar.setStyleSheet("background-color: #0f0f12; border-bottom: 1px solid #1c1c1c; padding: 12px 32px;")
+        toolbar.setStyleSheet("background-color: #1a1a1a; border-bottom: 1px solid #333333; padding: 12px 32px;")
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -864,7 +859,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(20)
 
         control_bar = QHBoxLayout()
-        control_bar.addWidget(QLabel("<span style='color: #888888; font-weight: 600;'>分析最近:</span>"))
+        control_bar.addWidget(QLabel("<span style='color: #aaaaaa; font-weight: 600;'>分析最近:</span>"))
         self.analyze_range = QSpinBox()
         self.analyze_range.setRange(100, 100000)
         self.analyze_range.setValue(1000)
@@ -874,7 +869,7 @@ class MainWindow(QMainWindow):
         control_bar.addWidget(self.analyze_range)
 
         self.btn_manual_analyze = QPushButton("🚀 立即分析")
-        self.btn_manual_analyze.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #444444, stop:1 #666666); color: #f0f0f0; border: none; border-radius: 8px; padding: 10px 24px; font-weight: 600; font-size: 14px;")
+        self.btn_manual_analyze.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #444444, stop:1 #666666); color: #ffffff; border: none; border-radius: 8px; padding: 10px 24px; font-weight: 600; font-size: 14px;")
         control_bar.addWidget(self.btn_manual_analyze)
         control_bar.addStretch()
         layout.addLayout(control_bar)
@@ -910,7 +905,7 @@ class MainWindow(QMainWindow):
         stats_keys = [("mean", "平均值"), ("std", "标准差"), ("min", "最小值"), ("max", "最大值"), ("range", "范围"), ("cv", "变异系数")]
         for key, label in stats_keys:
             lbl = QLabel(f"{label}: --")
-            lbl.setStyleSheet("font-family: Consolas; font-size: 12px; color: #ffffff; padding: 6px 0; border-bottom: 1px solid #2a2a2a;")
+            lbl.setStyleSheet("font-family: Consolas; font-size: 12px; color: #ffffff; padding: 6px 0; border-bottom: 1px solid #444444;")
             stats_layout.addWidget(lbl)
             self.stat_labels[key] = lbl
         stats_group.setLayout(stats_layout)
@@ -1129,9 +1124,13 @@ class MainWindow(QMainWindow):
         data = self.data_buffer.get_data()
         if len(data) > 0:
             stats = RandomnessAnalyzer.get_statistics(data)
+            label_texts = {
+                "mean": "平均值", "std": "标准差", "min": "最小值", 
+                "max": "最大值", "range": "范围", "cv": "变异系数"
+            }
             for key, lbl in self.stat_labels.items():
                 if key in stats:
-                    lbl.setText(f"{key}: {stats[key]:.4f}")
+                    lbl.setText(f"{label_texts[key]}: {stats[key]:.4f}")
 
     def update_all_plots(self):
         if len(self.data_buffer) < 2:
@@ -1234,26 +1233,22 @@ class MainWindow(QMainWindow):
         if role == "TX":
             tag = "TX"
         color = "#aaaaaa" if role == "RX" else "#888888"
-        html = f"""
-        <div style="margin: 8px 0;">
-            <span style="color: #ffffff; font-size: 11px;">{time_str}</span>
-            <span style="color: #ffffff; font-size: 11px; margin-left: 12px;">{tag}</span>
-            <div style="margin-top: 6px; background-color: #0f0f12; border-left: 3px solid {color}; padding: 8px 12px; border-radius: 6px; font-family: Consolas; font-size: 12px; color: #ffffff;">
-                {content}
-            </div>
-        </div>"""
+        
+        content_escaped = content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        html = f'<div style="margin: 8px 0;">'
+        html += f'<span style="color: #ffffff; font-size: 11px;">{time_str}</span>'
+        html += f'<span style="color: #ffffff; font-size: 11px; margin-left: 12px;">{tag}</span>'
+        html += f'<div style="margin-top: 6px; background-color: #0f0f12; border-left: 3px solid {color}; padding: 8px 12px; border-radius: 6px; font-family: Consolas; font-size: 12px; color: #ffffff;">'
+        html += f'{content_escaped}'
+        html += '</div></div>'
+        
         self.chat_box.append(html)
         if self.auto_scroll:
             self.chat_box.verticalScrollBar().setValue(self.chat_box.verticalScrollBar().maximum())
 
     def add_system_msg(self, msg: str):
         time_str = datetime.now().strftime("%H:%M:%S")
-        html = f"""
-        <div style="text-align: center; margin: 12px 0;">
-            <span style="background-color: #1a1a1a; color: #ffffff; padding: 6px 16px; border-radius: 16px; font-size: 11px;">
-                [{time_str}] {msg}
-            </span>
-        </div>"""
+        html = f'<div style="text-align: center; margin: 12px 0;"><span style="background-color: #1a1a1a; color: #ffffff; padding: 6px 16px; border-radius: 16px; font-size: 11px;">[{time_str}] {msg}</span></div>'
         self.chat_box.append(html)
 
     # ---------- 分析功能 ----------
