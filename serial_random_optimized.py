@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-专业串口随机数分析助手 - 界面美化版（完整代码）
-修复数据保留问题，优化工具按钮UI
-"""
 
 import sys
 import serial
@@ -592,7 +588,7 @@ class RandomnessAnalyzer:
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("专业串口随机数分析助手")
+        self.setWindowTitle("串口助手-随机数分析")
         self.resize(1400, 900)
         self.setMinimumSize(1100, 700)
 
