@@ -384,6 +384,7 @@ class SerialWorker(QThread):
         try:
             if self.serial_port and self.serial_port.is_open:
                 self.serial_port.close()
+                self.port_closed.emit()
         except Exception:
             pass
 
@@ -393,7 +394,6 @@ class SerialWorker(QThread):
         if self.isRunning():
             self.terminate()
         self._safe_close()
-        self.port_closed.emit()
 
 
 class RandomnessAnalyzer:
