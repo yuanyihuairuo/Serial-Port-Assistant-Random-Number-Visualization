@@ -44,16 +44,19 @@ QMainWindow, QWidget {
 
 /* ---------- 侧边栏：毛玻璃面板 ---------- */
 #sidebarFrame {
+<<<<<<< HEAD
     background: rgba(255, 255, 255, 0.028);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     border-top-right-radius: 22px;
     border-bottom-right-radius: 22px;
 }
 #sidebarTitle {
+<<<<<<< HEAD
     font-size: 20px; font-weight: 700; color: #ffffff;
     letter-spacing: 0.3px; margin-bottom: 4px;
 }
 #sidebarSubtitle {
+<<<<<<< HEAD
     font-size: 12px; color: #8C8C95; margin-bottom: 30px;
 }
 QLabel.formLabel {
@@ -1000,6 +1003,8 @@ class MainWindow(QMainWindow):
         self.btn_manual_analyze = QPushButton("🚀 立即分析")
         self.btn_manual_analyze.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #6E82F5, stop:1 #5563E8); color: #ffffff; border: none; border-radius: 10px; padding: 10px 24px; font-weight: 600; font-size: 13px;")
         control_bar.addWidget(self.btn_manual_analyze)
+
+        
         control_bar.addStretch()
         layout.addLayout(control_bar)
 
@@ -1016,7 +1021,7 @@ class MainWindow(QMainWindow):
         score_layout = QVBoxLayout()
         self.score_label = QLabel("评分: --/100")
         self.score_label.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        self.score_label.setStyleSheet("color: #ffffff; margin-bottom: 12px;")
+        self.score_label.setStyleSheet("color: #000000; margin-bottom: 12px;")
         score_layout.addWidget(self.score_label)
 
         self.score_bar = QProgressBar()
@@ -1037,7 +1042,7 @@ class MainWindow(QMainWindow):
         stats_keys = [("mean", "平均值"), ("std", "标准差"), ("min", "最小值"), ("max", "最大值"), ("range", "范围"), ("cv", "变异系数")]
         for key, label in stats_keys:
             lbl = QLabel(f"{label}: --")
-            lbl.setStyleSheet("font-family: Consolas; font-size: 12px; color: #ffffff; padding: 6px 0; border-bottom: 1px solid #444444;")
+            lbl.setStyleSheet("font-family: Consolas; font-size: 12px; color: #000000; padding: 6px 0; border-bottom: 1px solid #cccccc;")
             stats_layout.addWidget(lbl)
             self.stat_labels[key] = lbl
         stats_group.setLayout(stats_layout)
@@ -1288,19 +1293,23 @@ class MainWindow(QMainWindow):
         if len(time_data) < 10:
             return
 
-        self.curve_time.setData(time_data)
+        self.curve_time.setData(time_data / 255.0)
         self.plot_time.setXRange(0, len(time_data))
+        self.plot_time.setYRange(0, 1)
 
         all_data = self.data_buffer.get_data()
         if len(all_data) > 0:
             hist, _ = np.histogram(all_data, bins=256, range=(0, 256))
-            self.bar_hist.setOpts(height=hist)
+            max_count = max(np.max(hist), 1)
+            self.bar_hist.setOpts(height=hist / max_count)
+            self.plot_hist.setYRange(0, 1)
 
         if len(all_data) >= 2:
             display_limit = min(MAX_SCATTER_POINTS, len(all_data)-1)
-            x = all_data[:-1][-display_limit:]
-            y = all_data[1:][-display_limit:]
+            x = all_data[:-1][-display_limit:] / 255.0
+            y = all_data[1:][-display_limit:] / 255.0
             self.scatter_plot.setData(x, y)
+            self.plot_scatter.setYRange(0, 1)
 
         if len(all_data) > 100:
             try:
