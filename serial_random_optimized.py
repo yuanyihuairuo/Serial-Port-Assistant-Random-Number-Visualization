@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import sys
+import time
+import queue
 import serial
 import serial.tools.list_ports
 import numpy as np
@@ -10,264 +12,241 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QComboBox, QPushButton, QTextEdit, QMessageBox,
     QGroupBox, QStackedWidget, QCheckBox, QTabWidget,
-    QFileDialog, QProgressBar, QSpinBox, QFrame, QLineEdit
+    QFileDialog, QProgressBar, QSpinBox, QFrame, QLineEdit,
+    QSplitter, QGraphicsDropShadowEffect
 )
-from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
-from PyQt6.QtGui import QFont, QTextOption
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QFont, QTextOption, QColor
 import pyqtgraph as pg
 
 # ==================== 全局样式 ====================
 APP_STYLE = """
+/* ============================================================
+   现代 AI Agent 风深色主题（Glassmorphism）
+   说明：Qt 的 QSS 不支持 CSS 级 backdrop-filter（无法对背景做真实
+   高斯模糊）。这里用“半透明层 + 细边框 + 大圆角 + 柔光阴影”来近似
+   毛玻璃质感，深色氛围底色用放射渐变营造环境光晕，Windows/macOS 一致。
+   ============================================================ */
+
 QMainWindow, QWidget {
-    background-color: #121212;
-    color: #ffffff;
-    font-family: 'Arial', 'Microsoft YaHei', sans-serif;
+    background-color: #0A0A0A;
+    color: #E9E9EC;
+    font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
     font-size: 13px;
 }
 
+/* 主内容区：顶部偏蓝的环境光晕，模拟 AI Agent 界面的深空氛围 */
+#mainContent {
+    background: qradialgradient(cx:0.5, cy:0.16, radius:1.05, fx:0.5, fy:0.16,
+        stop:0 rgba(96,122,255,0.24), stop:0.32 rgba(48,52,92,0.11),
+        stop:0.68 rgba(12,12,14,0.0), stop:1 #0A0A0A);
+}
+
+/* ---------- 侧边栏：毛玻璃面板 ---------- */
 #sidebarFrame {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a1a1a, stop:1 #151515);
-    border-right: 1px solid #333333;
-    padding: 24px;
+    background: rgba(255, 255, 255, 0.028);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    border-top-right-radius: 22px;
+    border-bottom-right-radius: 22px;
 }
-
 #sidebarTitle {
-    font-size: 18px;
-    font-weight: 700;
-    color: #ffffff;
-    margin-bottom: 6px;
-    letter-spacing: 0.5px;
+    font-size: 20px; font-weight: 700; color: #ffffff;
+    letter-spacing: 0.3px; margin-bottom: 4px;
 }
-
 #sidebarSubtitle {
-    font-size: 12px;
-    color: #999999;
-    margin-bottom: 32px;
+    font-size: 12px; color: #8C8C95; margin-bottom: 30px;
 }
-
 QLabel.formLabel {
-    color: #ffffff;
-    font-size: 12px;
-    margin-bottom: 8px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    color: #9A9AA3; font-size: 11px; margin-bottom: 8px;
+    font-weight: 600; letter-spacing: 1.2px;
 }
 
+/* ---------- 下拉框 ---------- */
 QComboBox {
-    background-color: #1a1a1a;
-    border: 2px solid #444444;
-    border-radius: 8px;
-    padding: 10px 14px;
-    color: #ffffff;
-    font-size: 13px;
-    min-height: 42px;
-    font-weight: 500;
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 10px 34px 10px 14px;
+    color: #E9E9EC; font-size: 13px; font-weight: 500;
+    min-height: 20px;
 }
-
-QComboBox:hover { border-color: #666666; }
-QComboBox:focus { border-color: #777777; background-color: #222222; }
-QComboBox::drop-down { border: none; width: 30px; }
+QComboBox:hover { border-color: rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); }
+QComboBox:focus { border-color: rgba(122, 140, 255, 0.55); background: rgba(255, 255, 255, 0.05); }
+QComboBox::drop-down { border: none; width: 28px; }
 QComboBox::down-arrow {
-    image: none; border-left: 6px solid transparent; border-right: 6px solid transparent;
-    border-top: 8px solid #ffffff; margin-right: 8px;
+    image: none; border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 6px solid #A9A9B1; margin-right: 12px;
 }
 QComboBox QAbstractItemView {
-    background-color: #1a1a1a; border: 1px solid #444444; border-radius: 8px;
-    padding: 4px; color: #ffffff; selection-background-color: #333333; outline: none;
+    background-color: #121218; border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px; padding: 6px; color: #E9E9EC;
+    selection-background-color: rgba(122, 140, 255, 0.30); outline: none;
 }
 
+/* ---------- 工具按钮（发送/接收控制区） ---------- */
 QPushButton[btnClass="toolBtn"] {
-    background-color: transparent;
-    border: 2px solid #2a2a2a;
-    border-radius: 8px;
-    padding: 8px 16px;
-    font-size: 12px;
-    color: #ffffff;
-    font-weight: 500;
-    margin-right: 10px;
+    background-color: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 12px; color: #C9C9D0; font-weight: 500;
+    text-align: left;
 }
 QPushButton[btnClass="toolBtn"]:hover {
-    border-color: #666666;
-    color: #ffffff;
-    background-color: transparent;
+    background-color: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.16); color: #ffffff;
 }
-QPushButton[btnClass="toolBtn"][btnState="active-yellow"] {
-    color: #ffffff;
-    border-color: #ffffff;
-    background-color: rgba(255, 255, 255, 0.1);
-    font-weight: 600;
-}
-QPushButton[btnClass="toolBtn"][btnState="active-cyan"] {
-    color: #ffffff;
-    border-color: #ffffff;
-    background-color: rgba(255, 255, 255, 0.1);
-    font-weight: 600;
-}
+QPushButton[btnClass="toolBtn"]:pressed { background-color: rgba(255, 255, 255, 0.03); }
+QPushButton[btnClass="toolBtn"][btnState="active-yellow"],
+QPushButton[btnClass="toolBtn"][btnState="active-cyan"],
 QPushButton[btnClass="toolBtn"]:checked {
-    color: #ffffff;
-    border-color: #ffffff;
-    background-color: rgba(255, 255, 255, 0.1);
-    font-weight: 600;
+    background-color: rgba(122, 140, 255, 0.16);
+    border-color: rgba(122, 140, 255, 0.45);
+    color: #ffffff; font-weight: 600;
 }
 
-QPushButton[btnClass="primary"] {
-    background-color: #333333;
-    color: #ffffff;
-    border: none;
-    font-weight: 600;
-    border-radius: 8px;
-    padding: 8px 18px;
-    font-size: 12px;
-    margin-right: 10px;
-}
-QPushButton[btnClass="primary"]:hover {
-    background-color: #444444;
-}
-QPushButton[btnClass="primary"]:checked {
-    background-color: #555555;
-    color: #ffffff;
-}
-
-
-
+/* ---------- 连接按钮：毛玻璃 + 绿/红状态灯 ---------- */
 #btnConnect {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #555555, stop:1 #666666);
-    border: 2px solid #666666;
-    padding: 12px;
-    min-height: 46px;
-    letter-spacing: 0.5px;
-    border-radius: 8px;
-    color: #ffffff;
-    margin-bottom: 8px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    padding: 13px 18px 13px 46px;
+    min-height: 50px;
+    color: #ffffff; font-weight: 600; letter-spacing: 0.4px;
 }
-#btnConnect:hover { 
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #666666, stop:1 #555555);
-    border-color: #777777;
-    color: #ffffff;
-}
-#btnConnect:pressed { background: #2a2a2a; }
+#btnConnect:hover { background-color: rgba(255, 255, 255, 0.09); border-color: rgba(255, 255, 255, 0.26); }
+#btnConnect:pressed { background-color: rgba(255, 255, 255, 0.03); }
+#btnConnect:disabled { background-color: rgba(255, 255, 255, 0.03); color: #8C8C95; }
 
-#btnReconnect {
-    background-color: #444444;
-    color: #ffffff;
-    border: 2px solid #555555;
-    border-radius: 8px;
-    padding: 10px;
-    min-height: 42px;
-    font-weight: 500;
-    margin-top: 8px;
+#btnReconnect, #btnExit {
+    background-color: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px; color: #C9C9D0; font-weight: 500;
 }
-#btnReconnect:hover { background-color: #555555; color: #ffffff; border-color: #666666; }
-
-#btnExit {
-    background-color: #333333;
-    color: #ffffff;
-    border: 2px solid #444444;
-    border-radius: 8px;
-    padding: 6px 16px;
-    font-size: 12px;
-    min-width: 80px;
+#btnReconnect { padding: 11px; min-height: 42px; margin-top: 2px; }
+#btnExit { padding: 7px 18px; font-size: 12px; min-width: 84px; }
+#btnReconnect:hover, #btnExit:hover {
+    background-color: rgba(255, 255, 255, 0.08); color: #ffffff; border-color: rgba(255, 255, 255, 0.16);
 }
-#btnExit:hover { background-color: #444444; color: #ffffff; border-color: #666666; }
 
+/* ---------- 顶部导航栏：毛玻璃胶囊 ---------- */
 #topNavBar {
-    background-color: #1a1a1a;
-    border-bottom: 1px solid #333333;
-    padding: 16px 32px;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 14px 28px;
 }
 
-#mainContent { background-color: #121212; }
-
+/* ---------- 终端显示区：深色玻璃卡片 ---------- */
 #terminalDisplay {
-    background-color: #1a1a1a;
-    border: 1px solid #333333;
-    border-radius: 12px;
-    padding: 16px;
-    font-family: 'Consolas', 'Menlo', monospace;
-    font-size: 13px;
-    color: #ffffff;
+    background-color: rgba(9, 10, 13, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 12px;
+    font-family: 'Cascadia Code', 'Consolas', 'Menlo', monospace;
+    font-size: 12.5px; color: #E6E6EA;
 }
 
-#inputAreaFrame {
-    background-color: #1a1a1a;
-    border-top: 1px solid #333333;
-    padding: 20px 32px;
-}
 #sendInput {
-    background-color: #1a1a1a;
-    border: 2px solid #333333;
-    border-radius: 10px;
-    padding: 12px;
-    font-family: 'Consolas', monospace;
-    font-size: 13px;
-    color: #ffffff;
+    background-color: rgba(11, 12, 16, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px; padding: 12px;
+    font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 13px; color: #ffffff;
     min-height: 70px;
 }
-#sendInput:focus { border-color: #666666; background-color: #222222; }
+#sendInput:focus { border-color: rgba(122, 140, 255, 0.5); background-color: rgba(14, 15, 20, 0.75); }
 
+/* ---------- 主发送按钮：渐变强调色 ---------- */
 #btnSend {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #333333, stop:1 #444444);
-    color: #ffffff;
-    border: 2px solid #2a2a2a;
-    border-radius: 10px;
-    padding: 12px 32px;
-    font-weight: 600;
-    font-size: 14px;
-    min-width: 100px;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #6E82F5, stop:1 #5563E8);
+    color: #ffffff; border: none; border-radius: 12px;
+    padding: 12px 30px; font-weight: 600; font-size: 14px; min-width: 110px;
 }
-#btnSend:enabled:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #444444, stop:1 #333333); border-color: #666666; }
-#btnSend:disabled { background-color: #1a1a1a; color: #888888; border-color: #444444; }
+#btnSend:enabled:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #7D90F8, stop:1 #6372EC); }
+#btnSend:disabled { background-color: rgba(255, 255, 255, 0.05); color: #6E6E76; }
 
+/* ---------- 底部状态栏 ---------- */
 #statusBarFrame {
-    background-color: #1a1a1a;
-    border-top: 1px solid #333333;
-    padding: 12px 32px;
-    font-size: 12px;
-    color: #ffffff;
+    background: rgba(255, 255, 255, 0.018);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 10px 24px; font-size: 12px; color: #C9C9D0;
 }
 #statusTag {
-    background-color: #333333;
-    color: #ffffff;
-    padding: 4px 12px;
-    border-radius: 6px;
-    font-weight: 600;
-    margin-right: 16px;
+    background: rgba(255, 255, 255, 0.06); color: #D5D5DA;
+    padding: 4px 12px; border-radius: 8px; font-weight: 600; margin-right: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 #statusTag[connected="true"] {
-    background-color: #666666;
-    color: #ffffff;
+    background: rgba(52, 211, 153, 0.16); color: #ffffff; border-color: rgba(52, 211, 153, 0.35);
 }
 
+/* ---------- 终端页控制面板 ---------- */
+#receivePanel { background: rgba(255, 255, 255, 0.015); border-right: 1px solid rgba(255, 255, 255, 0.05); }
+#sendPanel { background: rgba(255, 255, 255, 0.015); border-left: 1px solid rgba(255, 255, 255, 0.05); }
+#panelTitle {
+    color: #ffffff; font-size: 13px; font-weight: 700;
+    letter-spacing: 0.4px; padding-bottom: 8px;
+}
+
+/* ---------- QSplitter 拖拽手柄 ---------- */
+QSplitter::handle { background: rgba(255, 255, 255, 0.06); }
+QSplitter::handle:horizontal { width: 8px; }
+QSplitter::handle:vertical { height: 8px; }
+QSplitter::handle:hover { background: rgba(122, 140, 255, 0.45); }
+
+/* ---------- 分析页卡片 ---------- */
 QGroupBox {
-    font-weight: 600; font-size: 14px; border: 2px solid #2a2a2a; border-radius: 12px;
-    margin-top: 16px; padding-top: 16px; background-color: #0f0f12; color: #ffffff;
+    font-weight: 600; font-size: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px; margin-top: 16px; padding-top: 16px;
+    background-color: rgba(255, 255, 255, 0.02); color: #E9E9EC;
 }
-QGroupBox::title { subcontrol-origin: margin; left: 16px; padding: 0 10px; color: #cccccc; font-weight: 600; }
+QGroupBox::title { subcontrol-origin: margin; left: 16px; padding: 0 10px; color: #B4B4BC; font-weight: 600; }
 
-QProgressBar { border: 2px solid #2a2a2a; border-radius: 10px; background: #1a1a1a; height: 24px; text-align: center; font-weight: 600; color: #ffffff; }
-QProgressBar::chunk { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #777777, stop:1 #999999); border-radius: 8px; }
+QProgressBar {
+    border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.06);
+    height: 24px; text-align: center; font-weight: 600; color: #E9E9EC;
+}
+QProgressBar::chunk {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #6E82F5, stop:1 #2DD4BF);
+    border-radius: 8px;
+}
 
-QTabWidget::pane { border: 2px solid #2a2a2a; border-radius: 12px; background: #0f0f12; }
-QTabBar::tab { background: #1a1a1a; border: 2px solid #111114; border-bottom: none; border-top-left-radius: 8px; border-top-right-radius: 8px; padding: 10px 24px; margin-right: 4px; color: #ffffff; font-weight: 500; }
-QTabBar::tab:selected { background: #111114; color: #ffffff; border-color: #666666; }
-QTabBar::tab:hover:!selected { background: #151515; color: #ffffff; }
+QTabWidget::pane { border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 14px; background: rgba(255, 255, 255, 0.015); }
+QTabBar::tab {
+    background: transparent; border: 1px solid rgba(255, 255, 255, 0.06); border-bottom: none;
+    border-top-left-radius: 10px; border-top-right-radius: 10px;
+    padding: 9px 20px; margin-right: 6px; color: #A9A9B1; font-weight: 500;
+}
+QTabBar::tab:selected { background: rgba(122, 140, 255, 0.12); color: #ffffff; border-color: rgba(122, 140, 255, 0.35); }
+QTabBar::tab:hover:!selected { background: rgba(255, 255, 255, 0.05); color: #E9E9EC; }
 
-QCheckBox { color: #ffffff; font-size: 13px; spacing: 10px; padding: 6px 0; }
-QCheckBox::indicator { width: 18px; height: 18px; border-radius: 4px; border: 2px solid #2a2a2a; background: #1a1a1a; }
-QCheckBox::indicator:checked { background: #777777; border-color: #777777; }
+QCheckBox { color: #D5D5DA; font-size: 12px; spacing: 10px; padding: 6px 0; }
+QCheckBox::indicator { width: 16px; height: 16px; border-radius: 6px; border: 1.5px solid rgba(255, 255, 255, 0.20); background: rgba(255, 255, 255, 0.04); }
+QCheckBox::indicator:hover { border-color: rgba(122, 140, 255, 0.6); }
+QCheckBox::indicator:checked { background: rgba(122, 140, 255, 0.85); border-color: rgba(122, 140, 255, 0.85); }
+QCheckBox::indicator:disabled { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.1); }
 
-QScrollBar:vertical { background: #111114; width: 10px; border-radius: 5px; }
-QScrollBar::handle:vertical { background: #2a2a2a; border-radius: 5px; min-height: 30px; }
-QScrollBar::handle:vertical:hover { background: #555555; }
+/* ---------- 滚动条 ---------- */
+QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; border-radius: 5px; }
+QScrollBar::handle:vertical { background: rgba(255, 255, 255, 0.12); border-radius: 5px; min-height: 30px; }
+QScrollBar::handle:vertical:hover { background: rgba(255, 255, 255, 0.24); }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px; border-radius: 5px; }
+QScrollBar::handle:horizontal { background: rgba(255, 255, 255, 0.12); border-radius: 5px; min-width: 30px; }
+QScrollBar::handle:horizontal:hover { background: rgba(255, 255, 255, 0.24); }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 
-QLabel { color: #ffffff; }
+QLabel { color: #D5D5DA; }
 """
 
 # ==================== 性能优化配置 ====================
 MAX_TIME_SERIES_POINTS = 2000
 MAX_SCATTER_POINTS = 3000
-PLOT_UPDATE_INTERVAL = 1000
+PLOT_UPDATE_INTERVAL = 500          # 绘图节流间隔(ms)：限制主线程重绘频率，高速接收时防卡死
+RX_FLUSH_INTERVAL = 0.05            # 串口数据合并发射间隔(s)：子线程把数据攒成块再发信号，降低信号频率
+MAX_BUFFER_SIZE = 1048576           # 接收缓冲区上限(字节)
+CHAT_MAX_BLOCKS = 2000              # 终端显示最大块数，防止 QTextEdit 内存无限增长导致崩溃
+CHAT_MAX_MSG_CHARS = 2000           # 单条消息最长显示字符数，防止超大包刷屏卡顿
 
 # ==================== 核心逻辑类 ====================
 
@@ -335,6 +314,18 @@ class CircularBuffer:
 
 
 class SerialWorker(QThread):
+    """串口读写工作线程。
+
+    线程安全设计：
+    - 所有对 serial.Serial 的读/写都只发生在该子线程内（run 循环）。
+    - 接收数据会先攒到一块，按间隔/帧边界合并后再用 data_received 信号发到主线程，
+      从而把“高速接收”的信号频率压制到 RX_FLUSH_INTERVAL (约20Hz) 以内，
+      避免主线程事件循环被海量信号淹没。
+    - 主线程发送数据只是 request_send() 往 write_queue 里入队，
+      真正的 write() 由子线程消费，杜绝了原先主线程/子线程同时读写同一个
+      pyserial 对象导致的竞态与崩溃。
+    """
+
     data_received = pyqtSignal(bytes)
     error_occurred = pyqtSignal(str)
     port_closed = pyqtSignal()
@@ -342,7 +333,8 @@ class SerialWorker(QThread):
     def __init__(self, port_name: str, baudrate: int,
                  bytesize: int = 8, parity: str = 'N', stopbits: float = 1,
                  accumulate_mode: bool = True, buffer_timeout: float = 0.05,
-                 max_buffer_size: int = 1048576):
+                 max_buffer_size: int = MAX_BUFFER_SIZE,
+                 flush_interval: float = RX_FLUSH_INTERVAL):
         super().__init__()
         self.port_name = port_name
         self.baudrate = baudrate
@@ -351,11 +343,14 @@ class SerialWorker(QThread):
         self.stopbits = stopbits
         self.accumulate_mode = accumulate_mode
         self.buffer_timeout = buffer_timeout
-        self.max_buffer_size = max_buffer_size  # 最大缓冲区大小，防止内存溢出
+        self.max_buffer_size = max_buffer_size
+        self.flush_interval = flush_interval
         self.running = True
         self.serial_port: Optional[serial.Serial] = None
-        self.accumulated_buffer = bytearray()
-        self.last_data_time = 0
+        self._rx_accum = bytearray()      # 合并后的接收缓冲，攒够再发，防止高频小包
+        self._last_data_time = 0.0
+        self._last_flush_time = 0.0
+        self.write_queue: "queue.Queue[bytes]" = queue.Queue()  # 写入请求队列(线程安全)
 
     def run(self):
         try:
@@ -369,16 +364,17 @@ class SerialWorker(QThread):
                 write_timeout=1.0
             )
             self.serial_port.flushInput()
+            self._last_flush_time = time.time()
             while self.running:
                 try:
-                    if self.accumulate_mode:
-                        self._read_with_accumulation()
-                    else:
-                        self._read_direct()
-                        
+                    progressed = self._poll_serial()
+                    self._drain_writes()
+                    if not progressed:
+                        # 线路空闲时睡一小会，避免工作线程忙等烧 CPU
+                        self.msleep(2)
                 except serial.SerialException as e:
                     if self.running:
-                        self.error_occurred.emit(f"串口读取错误: {e}")
+                        self.error_occurred.emit(f"串口读写错误: {e}")
                         break
         except Exception as e:
             if self.running:
@@ -386,46 +382,61 @@ class SerialWorker(QThread):
         finally:
             self._safe_close()
 
-    def _read_direct(self):
-        if self.serial_port.in_waiting > 0:
-            # 读取所有可用数据
+    def _poll_serial(self) -> bool:
+        now = time.time()
+        progressed = False
+        if self.serial_port and self.serial_port.is_open and self.serial_port.in_waiting > 0:
             data = self.serial_port.read(self.serial_port.in_waiting)
             if data:
-                self.data_received.emit(data)
-            # 如果还有更多数据，继续读取（防止缓冲区溢出）
-            while self.serial_port.in_waiting > 0 and len(data) < 65536:
-                more_data = self.serial_port.read(self.serial_port.in_waiting)
-                if more_data:
-                    data += more_data
-                    self.data_received.emit(more_data)
+                self._rx_accum.extend(data)
+                self._last_data_time = now
+                progressed = True
+        self._maybe_flush(now)
+        return progressed
 
-    def _read_with_accumulation(self):
-        if self.serial_port.in_waiting > 0:
-            data = self.serial_port.read(self.serial_port.in_waiting)
-            if data:
-                self.accumulated_buffer.extend(data)
-                self.last_data_time = datetime.now().timestamp()
-                
-                # 防止缓冲区过大
-                if len(self.accumulated_buffer) > self.max_buffer_size:
-                    self.data_received.emit(bytes(self.accumulated_buffer[:self.max_buffer_size]))
-                    self.accumulated_buffer = bytearray()
-        else:
-            if self.accumulated_buffer and self.last_data_time > 0:
-                current_time = datetime.now().timestamp()
-                elapsed = current_time - self.last_data_time
-                if elapsed >= self.buffer_timeout:
-                    if self.accumulated_buffer:
-                        self.data_received.emit(bytes(self.accumulated_buffer))
-                        self.accumulated_buffer.clear()
-                        self.last_data_time = 0  # 重置时间戳
+    def _maybe_flush(self, now):
+        if not self._rx_accum:
+            return
+        should_flush = False
+        if len(self._rx_accum) >= self.max_buffer_size:
+            should_flush = True          # 超上限立即发，防止内存无限增长
+        elif self._last_data_time > 0:
+            idle = now - self._last_data_time
+            if self.accumulate_mode and idle >= self.buffer_timeout:
+                # 累积/成帧模式：数据安静一段后当作一个完整包发射
+                should_flush = True
+            elif not self.accumulate_mode and (now - self._last_flush_time) >= self.flush_interval:
+                # 直通模式：达到合并间隔即发射（限流），避免高频小包刷爆主线程
+                should_flush = True
+        if should_flush:
+            self.data_received.emit(bytes(self._rx_accum))
+            self._rx_accum.clear()
+            self._last_data_time = 0.0
+            self._last_flush_time = time.time()
+
+    def _drain_writes(self):
+        while True:
+            try:
+                data = self.write_queue.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                if self.serial_port and self.serial_port.is_open:
+                    self.serial_port.write(data)
+                    self.serial_port.flush()
+            except Exception as e:
+                if self.running:
+                    self.error_occurred.emit(f"串口发送失败: {e}")
+
+    def request_send(self, data: bytes):
+        """主线程调用。只把字节入队，绝不在主线程触碰 pyserial 对象。"""
+        self.write_queue.put(bytes(data))
 
     def _safe_close(self):
         try:
-            if self.accumulated_buffer:
-                self.data_received.emit(bytes(self.accumulated_buffer))
-                self.accumulated_buffer.clear()
-            
+            if self._rx_accum:
+                self.data_received.emit(bytes(self._rx_accum))
+                self._rx_accum.clear()
             if self.serial_port and self.serial_port.is_open:
                 self.serial_port.close()
                 self.port_closed.emit()
@@ -584,8 +595,84 @@ class RandomnessAnalyzer:
         return {"score": min(100, max(0, score)), "level": level, "issues": issues}
 
 
+# ==================== 连接按钮（带状态指示灯 + 毛玻璃质感） ====================
+class ConnectButton(QPushButton):
+    """串口“打开/关闭”按钮。
+
+    在按钮左侧绘制一个绿/红圆点作为动态状态指示灯：
+        绿色 (已连接) / 红色 (未连接)。
+    配合 QSS 的半透明 rgba 背景 + 圆角 + 阴影，模拟 Windows/macOS 通用的
+    Frosted Glass（毛玻璃）质感。Qt 原生控件无法真正对背景做模糊，
+    这里用半透明层 + 柔光阴影来近似，跨平台表现一致。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("btnConnect")
+        self.setCheckable(False)
+        self._connected = False
+
+        # 状态指示灯：一个不拦截鼠标事件的小圆点，作为按钮的子控件平铺在按钮左侧
+        self._dot = QLabel(self)
+        self._dot.setFixedSize(14, 14)
+        self._dot.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._set_dot_color(False)
+
+        # 毛玻璃质感的柔光阴影（外发光）
+        self._glow = QGraphicsDropShadowEffect(self)
+        self._glow.setBlurRadius(24)
+        self._glow.setOffset(0, 0)
+        self._glow.setColor(QColor(248, 113, 113, 60))   # 未连接：淡淡的红晕
+        self.setGraphicsEffect(self._glow)
+
+        # “呼吸”呼吸灯动画：连接成功后外发光做柔和缩放，营造通电感
+        self._glow_anim = QPropertyAnimation(self._glow, b"blurRadius", self)
+        self._glow_anim.setDuration(2200)
+        self._glow_anim.setStartValue(18)
+        self._glow_anim.setEndValue(40)
+        self._glow_anim.setLoopCount(-1)
+        self._glow_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
+
+    def _set_dot_color(self, connected: bool):
+        color = "#34d399" if connected else "#f87171"
+        self._dot.setStyleSheet(
+            f"background-color: {color};"
+            f"border: 2px solid rgba(255,255,255,0.30);"
+            f"border-radius: 7px;"
+        )
+
+    def set_connected(self, connected: bool):
+        if self._connected == connected:
+            return
+        self._connected = connected
+        self._set_dot_color(connected)
+
+        if connected:
+            # 通电：绿色呼吸光晕
+            self._glow.setColor(QColor(52, 211, 153, 90))
+            self._glow_anim.start()
+        else:
+            # 断电：停掉呼吸，回到淡红晕
+            self._glow_anim.stop()
+            self._glow.setBlurRadius(24)
+            self._glow.setColor(QColor(248, 113, 113, 60))
+        self.update()
+
+    def is_connected(self) -> bool:
+        return self._connected
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # 圆点垂直居中、水平靠左，落在按钮左内边距内
+        self._dot.move(18, (self.height() - self._dot.height()) // 2)
+
+
 # ==================== 主窗口类 ====================
 class MainWindow(QMainWindow):
+    # 绘图重绘请求信号：主窗口内部用 Signal/Slot 解耦“数据到达”与“UI 绘制”，
+    # 并配合节流定时器把重绘频率限制在 PLOT_UPDATE_INTERVAL 以内，防止 UI 卡死。
+    plot_update_requested = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("串口助手-随机数分析")
@@ -598,8 +685,8 @@ class MainWindow(QMainWindow):
         self.rx_format = "HEX"
         self.tx_format = "HEX"
         self.auto_scroll = True
-        self._last_stats_count = 0
-        self._last_stats_time = datetime.now()
+        self._rx_count = 0
+        self._tx_count = 0
 
         self.init_ui()
         self.setStyleSheet(APP_STYLE)
@@ -610,10 +697,11 @@ class MainWindow(QMainWindow):
         self.analysis_timer.setInterval(3000)
         self.analysis_timer.timeout.connect(self.auto_analyze)
 
+        # 绘图节流定时器：限流/防抖，高速接收时最多每 PLOT_UPDATE_INTERVAL 重绘一次
         self.plot_update_timer = QTimer()
         self.plot_update_timer.setInterval(PLOT_UPDATE_INTERVAL)
-        self.plot_update_timer.timeout.connect(self.deferred_plot_update)
-        self.plot_update_pending = False
+        self.plot_update_timer.timeout.connect(self.update_all_plots)
+        self.plot_update_requested.connect(self._schedule_plot_update)
 
         self.stats_timer = QTimer()
         self.stats_timer.setInterval(1000)
@@ -631,7 +719,7 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(0)
 
         self.sidebar = self.create_sidebar()
-        main_layout.addWidget(self.sidebar)
+        self.sidebar.setMinimumWidth(276)
 
         right_widget = QWidget()
         right_widget.setObjectName("mainContent")
@@ -649,8 +737,16 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.page_analysis)
         right_layout.addWidget(self.stacked_widget)
 
-        main_layout.addWidget(right_widget)
-        self.sidebar.setFixedWidth(300)
+        # 整个窗口：侧边栏 + 主内容 用 QSplitter，侧边栏也可拖拽调整宽度
+        self.main_splitter_h = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter_h.setObjectName("mainSplitterH")
+        self.main_splitter_h.setChildrenCollapsible(False)
+        self.main_splitter_h.addWidget(self.sidebar)
+        self.main_splitter_h.addWidget(right_widget)
+        self.main_splitter_h.setStretchFactor(0, 0)
+        self.main_splitter_h.setStretchFactor(1, 1)
+        self.main_splitter_h.setSizes([300, 1100])
+        main_layout.addWidget(self.main_splitter_h)
 
     def create_sidebar(self) -> QWidget:
         frame = QFrame()
@@ -719,8 +815,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.cb_accumulate_mode)
 
         layout.addSpacing(24)
-        self.btn_connect = QPushButton("连接串口")
-        self.btn_connect.setObjectName("btnConnect")
+        # 带绿/红状态指示灯 + 毛玻璃质感的连接按钮
+        self.btn_connect = ConnectButton("连接串口")
         layout.addWidget(self.btn_connect)
 
         layout.addSpacing(8)
@@ -747,85 +843,42 @@ class MainWindow(QMainWindow):
     def create_terminal_page(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(14)
 
+        # ---------- 显示区：终端/聊天显示 ----------
         self.chat_box = QTextEdit()
         self.chat_box.setObjectName("terminalDisplay")
         self.chat_box.setReadOnly(True)
         self.chat_box.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
-        layout.addWidget(self.chat_box, 1)
+        # 限制文档块数，高速接收时防止 QTextEdit 内存无限增长导致界面崩溃
+        self.chat_box.document().setMaximumBlockCount(CHAT_MAX_BLOCKS)
 
-        toolbar = QWidget()
-        toolbar.setStyleSheet("background-color: #1a1a1a; border-bottom: 1px solid #333333; padding: 12px 32px;")
-        toolbar_layout = QHBoxLayout(toolbar)
-        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        # ---------- 底部控制区：接收控制区 + 发送区（水平 QSplitter，可拖拽） ----------
+        receive_panel = self._build_receive_panel()
+        send_panel = self._build_send_panel()
 
-        self.btn_rx_fmt = QPushButton("接收: ASCII")
-        self.btn_rx_fmt.setProperty("btnClass", "toolBtn")
-        self.btn_rx_fmt.setProperty("btnState", "active-yellow")
-        toolbar_layout.addWidget(self.btn_rx_fmt)
+        self.control_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.control_splitter.setObjectName("controlSplitter")
+        self.control_splitter.setChildrenCollapsible(False)
+        self.control_splitter.addWidget(receive_panel)
+        self.control_splitter.addWidget(send_panel)
+        self.control_splitter.setStretchFactor(0, 0)
+        self.control_splitter.setStretchFactor(1, 3)   # 发送区默认更宽，可拖拽调整
 
-        self.btn_tx_fmt = QPushButton("发送: HEX")
-        self.btn_tx_fmt.setProperty("btnClass", "toolBtn")
-        self.btn_tx_fmt.setProperty("btnState", "active-cyan")
-        toolbar_layout.addWidget(self.btn_tx_fmt)
+        # ---------- 垂直 QSplitter：显示区 vs 底部控制区（可上下拖拽） ----------
+        self.main_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.main_splitter.setObjectName("mainSplitter")
+        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.addWidget(self.chat_box)
+        self.main_splitter.addWidget(self.control_splitter)
+        self.main_splitter.setStretchFactor(0, 3)
+        self.main_splitter.setStretchFactor(1, 0)
+        self.main_splitter.setSizes([600, 260])
 
-        self.btn_auto_scroll = QPushButton("📜 自动滚动")
-        self.btn_auto_scroll.setProperty("btnClass", "toolBtn")
-        self.btn_auto_scroll.setCheckable(True)
-        self.btn_auto_scroll.setChecked(True)
-        self.btn_auto_scroll.setToolTip("切换自动滚动到底部")
-        toolbar_layout.addWidget(self.btn_auto_scroll)
+        layout.addWidget(self.main_splitter)
 
-        self.btn_export = QPushButton("💾 导出")
-        self.btn_export.setProperty("btnClass", "toolBtn")
-        self.btn_export.setToolTip("导出接收数据为文本文件")
-        toolbar_layout.addWidget(self.btn_export)
-
-        toolbar_layout.addSpacing(20)
-        toolbar_layout.addStretch()
-
-        self.btn_clear_rx = QPushButton("🗑️ 清空接收")
-        self.btn_clear_rx.setProperty("btnClass", "toolBtn")
-        self.btn_clear_rx.setToolTip("清空接收区所有记录")
-        toolbar_layout.addWidget(self.btn_clear_rx)
-
-        self.btn_clear_tx = QPushButton("🗑️ 清空发送")
-        self.btn_clear_tx.setProperty("btnClass", "toolBtn")
-        self.btn_clear_tx.setToolTip("清空发送输入框")
-        toolbar_layout.addWidget(self.btn_clear_tx)
-
-        layout.addWidget(toolbar)
-
-        input_frame = QFrame()
-        input_frame.setObjectName("inputAreaFrame")
-        input_layout = QHBoxLayout(input_frame)
-        input_layout.setContentsMargins(0, 0, 0, 0)
-        input_layout.setSpacing(16)
-
-        left_opts = QVBoxLayout()
-        left_opts.setSpacing(10)
-        self.cb_parity = QCheckBox("校验位")
-        self.cb_auto_send = QCheckBox("自动发送")
-        self.cb_auto_send.toggled.connect(self.toggle_auto_send)
-        left_opts.addWidget(self.cb_parity)
-        left_opts.addWidget(self.cb_auto_send)
-        left_opts.addStretch()
-        input_layout.addLayout(left_opts)
-
-        self.send_input = QTextEdit()
-        self.send_input.setObjectName("sendInput")
-        self.send_input.setPlaceholderText("输入要发送的数据...")
-        input_layout.addWidget(self.send_input, 1)
-
-        self.btn_send = QPushButton("发送")
-        self.btn_send.setObjectName("btnSend")
-        self.btn_send.setEnabled(False)
-        input_layout.addWidget(self.btn_send)
-
-        layout.addWidget(input_frame)
-
+        # ---------- 底部状态栏 ----------
         status_frame = QFrame()
         status_frame.setObjectName("statusBarFrame")
         status_layout = QHBoxLayout(status_frame)
@@ -848,29 +901,112 @@ class MainWindow(QMainWindow):
         layout.addWidget(status_frame)
         return widget
 
+    def _build_receive_panel(self) -> QWidget:
+        """接收控制区：接收格式、自动滚动、导出、清空接收。"""
+        panel = QFrame()
+        panel.setObjectName("receivePanel")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(16, 12, 10, 12)
+        panel_layout.setSpacing(10)
+
+        title = QLabel("📥 接收控制区")
+        title.setObjectName("panelTitle")
+        panel_layout.addWidget(title)
+
+        self.btn_rx_fmt = QPushButton("接收: ASCII")
+        self.btn_rx_fmt.setProperty("btnClass", "toolBtn")
+        self.btn_rx_fmt.setProperty("btnState", "active-yellow")
+        panel_layout.addWidget(self.btn_rx_fmt)
+
+        self.btn_auto_scroll = QPushButton("📜 自动滚动")
+        self.btn_auto_scroll.setProperty("btnClass", "toolBtn")
+        self.btn_auto_scroll.setCheckable(True)
+        self.btn_auto_scroll.setChecked(True)
+        self.btn_auto_scroll.setToolTip("切换自动滚动到底部")
+        panel_layout.addWidget(self.btn_auto_scroll)
+
+        self.btn_export = QPushButton("💾 导出")
+        self.btn_export.setProperty("btnClass", "toolBtn")
+        self.btn_export.setToolTip("导出接收数据为文本文件")
+        panel_layout.addWidget(self.btn_export)
+
+        self.btn_clear_rx = QPushButton("🗑️ 清空接收")
+        self.btn_clear_rx.setProperty("btnClass", "toolBtn")
+        self.btn_clear_rx.setToolTip("清空接收区所有记录")
+        panel_layout.addWidget(self.btn_clear_rx)
+
+        panel_layout.addStretch()
+        return panel
+
+    def _build_send_panel(self) -> QWidget:
+        """发送区：发送格式、清空发送、自动发送、输入框、发送按钮。"""
+        panel = QFrame()
+        panel.setObjectName("sendPanel")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(10, 12, 16, 12)
+        panel_layout.setSpacing(10)
+
+        title_row = QHBoxLayout()
+        title = QLabel("📤 发送区")
+        title.setObjectName("panelTitle")
+        title_row.addWidget(title)
+        title_row.addStretch()
+        self.cb_auto_send = QCheckBox("自动发送")
+        self.cb_auto_send.toggled.connect(self.toggle_auto_send)
+        title_row.addWidget(self.cb_auto_send)
+        panel_layout.addLayout(title_row)
+
+        self.send_input = QTextEdit()
+        self.send_input.setObjectName("sendInput")
+        self.send_input.setPlaceholderText("输入要发送的数据...")
+        panel_layout.addWidget(self.send_input, 1)
+
+        send_btn_row = QHBoxLayout()
+        self.btn_tx_fmt = QPushButton("发送: HEX")
+        self.btn_tx_fmt.setProperty("btnClass", "toolBtn")
+        self.btn_tx_fmt.setProperty("btnState", "active-cyan")
+        send_btn_row.addWidget(self.btn_tx_fmt)
+
+        self.btn_clear_tx = QPushButton("🗑️ 清空发送")
+        self.btn_clear_tx.setProperty("btnClass", "toolBtn")
+        self.btn_clear_tx.setToolTip("清空发送输入框")
+        send_btn_row.addWidget(self.btn_clear_tx)
+
+        send_btn_row.addStretch()
+        self.btn_send = QPushButton("发送")
+        self.btn_send.setObjectName("btnSend")
+        self.btn_send.setEnabled(False)
+        send_btn_row.addWidget(self.btn_send)
+        panel_layout.addLayout(send_btn_row)
+
+        return panel
+
     def create_analysis_page(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(32, 32, 32, 32)
-        layout.setSpacing(20)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(14)
 
         control_bar = QHBoxLayout()
-        control_bar.addWidget(QLabel("<span style='color: #aaaaaa; font-weight: 600;'>分析最近:</span>"))
+        control_bar.addWidget(QLabel("<span style='color: #8C8C95; font-weight: 600;'>分析最近:</span>"))
         self.analyze_range = QSpinBox()
         self.analyze_range.setRange(100, 100000)
         self.analyze_range.setValue(1000)
         self.analyze_range.setSingleStep(100)
         self.analyze_range.setSuffix(" 字节")
-        self.analyze_range.setStyleSheet("padding: 8px 12px; border: 2px solid #2a2a2a; border-radius: 8px; background-color: #1a1a1a; color: #ffffff; font-weight: 600; min-width: 150px;")
+        self.analyze_range.setStyleSheet("padding: 8px 14px; border: 1px solid rgba(255,255,255,0.10); border-radius: 10px; background-color: rgba(255,255,255,0.04); color: #E9E9EC; font-weight: 600; min-width: 150px;")
         control_bar.addWidget(self.analyze_range)
 
         self.btn_manual_analyze = QPushButton("🚀 立即分析")
-        self.btn_manual_analyze.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #444444, stop:1 #666666); color: #ffffff; border: none; border-radius: 8px; padding: 10px 24px; font-weight: 600; font-size: 14px;")
+        self.btn_manual_analyze.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #6E82F5, stop:1 #5563E8); color: #ffffff; border: none; border-radius: 10px; padding: 10px 24px; font-weight: 600; font-size: 13px;")
         control_bar.addWidget(self.btn_manual_analyze)
         control_bar.addStretch()
         layout.addLayout(control_bar)
 
-        h_splitter = QHBoxLayout()
+        # 分析页面：左右两栏用 QSplitter 拖拽调整（统计/评分 vs 图表）
+        self.analysis_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.analysis_splitter.setObjectName("analysisSplitter")
+        self.analysis_splitter.setChildrenCollapsible(False)
 
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
@@ -890,7 +1026,7 @@ class MainWindow(QMainWindow):
 
         self.issues_label = QLabel("等待数据进行分析...")
         self.issues_label.setWordWrap(True)
-        self.issues_label.setStyleSheet("color: #ffffff; font-size: 12px; margin-top: 12px; line-height: 1.6;")
+        self.issues_label.setStyleSheet("color: #A9A9B1; font-size: 12px; margin-top: 12px; line-height: 1.6;")
         score_layout.addWidget(self.issues_label)
         score_group.setLayout(score_layout)
         left_layout.addWidget(score_group)
@@ -907,7 +1043,7 @@ class MainWindow(QMainWindow):
         stats_group.setLayout(stats_layout)
         left_layout.addWidget(stats_group)
         left_layout.addStretch()
-        h_splitter.addWidget(left_panel, 1)
+        self.analysis_splitter.addWidget(left_panel)
 
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
@@ -915,53 +1051,57 @@ class MainWindow(QMainWindow):
         self.tab_widget = QTabWidget()
         self.create_plots()
         right_layout.addWidget(self.tab_widget)
-        h_splitter.addWidget(right_panel, 3)
-        layout.addLayout(h_splitter)
+        self.analysis_splitter.addWidget(right_panel)
+
+        self.analysis_splitter.setStretchFactor(0, 1)
+        self.analysis_splitter.setStretchFactor(1, 3)
+        self.analysis_splitter.setSizes([360, 800])
+        layout.addWidget(self.analysis_splitter)
         return widget
 
     def create_plots(self):
         pg.setConfigOptions(
             antialias=False,
-            foreground='#ffffff',
-            background='#0f0f12',
+            foreground='#E9E9EC',
+            background='#0D0E13',
             enableExperimental=True
         )
 
         self.plot_time = pg.PlotWidget(title="时域波形")
         self.setup_plot_style(self.plot_time)
-        self.curve_time = self.plot_time.plot(pen=pg.mkPen('#ffffff', width=1))
+        self.curve_time = self.plot_time.plot(pen=pg.mkPen('#8A9CFF', width=1.5))
         self.tab_widget.addTab(self.plot_time, "时域波形")
 
         self.plot_hist = pg.PlotWidget(title="字节分布")
         self.setup_plot_style(self.plot_hist)
-        self.bar_hist = pg.BarGraphItem(x=list(range(256)), height=[0]*256, width=1, brush=pg.mkBrush('#ffffff'))
+        self.bar_hist = pg.BarGraphItem(x=list(range(256)), height=[0]*256, width=1, brush=pg.mkBrush('#8A9CFF'))
         self.plot_hist.addItem(self.bar_hist)
         self.tab_widget.addTab(self.plot_hist, "分布直方图")
 
         self.plot_scatter = pg.PlotWidget(title="相邻字节相关性")
         self.setup_plot_style(self.plot_scatter)
-        self.scatter_plot = pg.ScatterPlotItem(symbol='o', size=3, brush=pg.mkBrush('#ffffffc0'), pen=None, pxMode=True)
+        self.scatter_plot = pg.ScatterPlotItem(symbol='o', size=3, brush=pg.mkBrush('#8A9CFFc0'), pen=None, pxMode=True)
         self.plot_scatter.addItem(self.scatter_plot)
         self.tab_widget.addTab(self.plot_scatter, "相关性散点")
 
         self.plot_autocorr = pg.PlotWidget(title="自相关分析")
         self.setup_plot_style(self.plot_autocorr)
         self.plot_autocorr.setXRange(0, 50)
-        self.plot_autocorr.addLine(y=0, pen=pg.mkPen('#888888', style=Qt.PenStyle.DashLine))
-        self.plot_autocorr.addLine(y=0.1, pen=pg.mkPen('#ffffff', style=Qt.PenStyle.DashLine))
-        self.plot_autocorr.addLine(y=-0.1, pen=pg.mkPen('#ffffff', style=Qt.PenStyle.DashLine))
+        self.plot_autocorr.addLine(y=0, pen=pg.mkPen('#6E6E76', style=Qt.PenStyle.DashLine))
+        self.plot_autocorr.addLine(y=0.1, pen=pg.mkPen('#B4B4BC', style=Qt.PenStyle.DashLine))
+        self.plot_autocorr.addLine(y=-0.1, pen=pg.mkPen('#B4B4BC', style=Qt.PenStyle.DashLine))
         x = np.arange(1, 51)
         y = np.zeros(50)
-        self.curve_autocorr = self.plot_autocorr.plot(x, y, pen=pg.mkPen('#ffffff', width=1), symbol='o', symbolSize=4, symbolBrush='#ffffff')
+        self.curve_autocorr = self.plot_autocorr.plot(x, y, pen=pg.mkPen('#8A9CFF', width=1.5), symbol='o', symbolSize=4, symbolBrush='#8A9CFF')
         self.tab_widget.addTab(self.plot_autocorr, "自相关分析")
 
     def setup_plot_style(self, plot_widget):
-        plot_widget.setBackground("#0f0f12")
-        plot_widget.getAxis("left").setPen("#ffffff")
-        plot_widget.getAxis("bottom").setPen("#ffffff")
-        plot_widget.showGrid(x=True, y=True, alpha=0.2)
-        plot_widget.setLabel("left", "Value", color="#ffffff")
-        plot_widget.setLabel("bottom", "Index", color="#ffffff")
+        plot_widget.setBackground("#0D0E13")
+        plot_widget.getAxis("left").setPen("#D5D5DA")
+        plot_widget.getAxis("bottom").setPen("#D5D5DA")
+        plot_widget.showGrid(x=True, y=True, alpha=0.16)
+        plot_widget.setLabel("left", "Value", color="#B4B4BC")
+        plot_widget.setLabel("bottom", "Index", color="#B4B4BC")
         plot_widget.setMouseEnabled(x=True, y=False)
 
     # ---------- 信号连接 ----------
@@ -1049,7 +1189,8 @@ class MainWindow(QMainWindow):
             self.worker = SerialWorker(
                 port_name, baudrate, bytesize, parity, stopbits,
                 accumulate_mode=accumulate_mode, buffer_timeout=0.05,
-                max_buffer_size=1048576  # 1MB缓冲区
+                max_buffer_size=MAX_BUFFER_SIZE,
+                flush_interval=RX_FLUSH_INTERVAL
             )
             self.worker.data_received.connect(self.handle_data)
             self.worker.error_occurred.connect(self.handle_error)
@@ -1058,6 +1199,7 @@ class MainWindow(QMainWindow):
 
             self.is_open = True
             self.btn_connect.setText("断开连接")
+            self.btn_connect.set_connected(True)     # 状态灯变绿
             self.btn_send.setEnabled(True)
 
             self.status_tag.setText("已连接")
@@ -1067,7 +1209,6 @@ class MainWindow(QMainWindow):
             if self.mode_switcher.currentIndex() == 1:
                 self.analysis_timer.start()
             self.stats_timer.start()
-            self.plot_update_timer.start()
             self.add_system_msg(f"成功连接到 {port_name} @ {baudrate}bps")
         except Exception as e:
             QMessageBox.critical(self, "连接失败", str(e))
@@ -1077,6 +1218,7 @@ class MainWindow(QMainWindow):
             self.worker.stop()
         self.is_open = False
         self.btn_connect.setText("连接串口")
+        self.btn_connect.set_connected(False)    # 状态灯变红
         self.btn_send.setEnabled(False)
 
         self.status_tag.setText("未连接")
@@ -1094,25 +1236,35 @@ class MainWindow(QMainWindow):
 
     # ---------- 数据接收 ----------
     def handle_data(self, data_bytes: bytes):
+        """主线程槽函数（由 SerialWorker.data_received 信号触达）。
+
+        只做轻量操作：写入循环缓冲、更新计数/显示，然后通过
+        plot_update_requested 信号请求一次（节流的）绘图。绝不在此触发重绘图。
+        """
         try:
+            new_data = np.frombuffer(data_bytes, dtype=np.uint8)
+            self.data_buffer.append(new_data)
+            self._rx_count += len(data_bytes)
+            self.rx_label.setText(f"Rx: {self._rx_count} Bytes")
+
+            # 终端显示：限制单条长度，避免超大包挤爆 QTextEdit
             formatted = self.format_display(data_bytes, self.rx_format)
             if formatted.strip():
                 self.add_chat_message("RX", formatted)
-            new_data = np.frombuffer(data_bytes, dtype=np.uint8)
-            self.data_buffer.append(new_data)
-            self.plot_update_pending = True
-            current_rx = int(self.rx_label.text().split(':')[1].strip().split()[0])
-            self.rx_label.setText(f"Rx: {current_rx + len(data_bytes)} Bytes")
+
+            # 请求一次绘图（内部信号/槽 + 节流，把重绘频率压制到 PLOT_UPDATE_INTERVAL）
+            self.plot_update_requested.emit()
         except Exception as e:
             self.add_system_msg(f"解析错误: {e}")
 
-    def deferred_plot_update(self):
-        if self.plot_update_pending:
-            try:
-                self.update_all_plots()
-            except Exception:
-                pass
-            self.plot_update_pending = False
+    def _schedule_plot_update(self):
+        """绘图限流/防抖：只在定时器空闲时启动一次，之后每秒最多重绘一次。
+
+        若定时器已在运行（正等待本轮重绘），此调用不做任何事，避免高频数据
+        打爆主线程事件循环。
+        """
+        if not self.plot_update_timer.isActive():
+            self.plot_update_timer.start()
 
     def update_realtime_stats(self):
         if len(self.data_buffer) == 0:
@@ -1158,7 +1310,7 @@ class MainWindow(QMainWindow):
                 if max_lag >= 10:
                     lags = np.arange(1, max_lag + 1)
                     corr = np.array([np.mean(data_norm[:-lag] * data_norm[lag:]) for lag in lags])
-                    self.curve_autocorr.setData(corr, pen=pg.mkPen('#ffffff', width=1), symbol='o', symbolSize=4, symbolBrush='#ffffff')
+                    self.curve_autocorr.setData(corr, pen=pg.mkPen('#8A9CFF', width=1.5), symbol='o', symbolSize=4, symbolBrush='#8A9CFF')
                     self.plot_autocorr.setXRange(1, max_lag)
             except:
                 pass
@@ -1172,12 +1324,14 @@ class MainWindow(QMainWindow):
             return
         try:
             data = self.convert_to_bytes(text, self.tx_format)
-            if self.worker and self.worker.serial_port and self.worker.serial_port.is_open:
-                self.worker.serial_port.write(data)
+            # 只把字节交给工作线程的发送队列，由子线程真正写串口，
+            # 彻底避免主线程与子线程同时读写同一个 pyserial 对象造成的竞态。
+            if self.worker:
+                self.worker.request_send(data)
                 self.add_chat_message("TX", self.format_display(data, self.tx_format))
                 self.send_input.clear()
-                current_tx = int(self.tx_label.text().split(':')[1].strip().split()[0])
-                self.tx_label.setText(f"Tx: {current_tx + len(data)} Bytes")
+                self._tx_count += len(data)
+                self.tx_label.setText(f"Tx: {self._tx_count} Bytes")
         except ValueError as e:
             QMessageBox.critical(self, "发送失败", str(e))
 
@@ -1228,13 +1382,19 @@ class MainWindow(QMainWindow):
         tag = "ASCII" if self.rx_format == "ASCII" else "HEX"
         if role == "TX":
             tag = "TX"
-        color = "#aaaaaa" if role == "RX" else "#888888"
-        
+        # 接收信息用靛蓝强调，发送信息用青绿强调
+        accent = "#8A9CFF" if role == "RX" else "#2DD4BF"
+        tag_color = "#C9C9D0" if role == "RX" else "#8A9CFF"
+
+        # 限制单条消息长度：高速数据包可能很长，只展示前段，防 QTextEdit 卡顿
+        if len(content) > CHAT_MAX_MSG_CHARS:
+            content = content[:CHAT_MAX_MSG_CHARS] + " …(已截断)"
+
         content_escaped = content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         html = f'<div style="margin: 8px 0;">'
-        html += f'<span style="color: #ffffff; font-size: 11px;">{time_str}</span>'
-        html += f'<span style="color: #ffffff; font-size: 11px; margin-left: 12px;">{tag}</span>'
-        html += f'<div style="margin-top: 6px; background-color: #0f0f12; border-left: 3px solid {color}; padding: 8px 12px; border-radius: 6px; font-family: Consolas; font-size: 12px; color: #ffffff;">'
+        html += f'<span style="color: #6E6E76; font-size: 11px;">{time_str}</span>'
+        html += f'<span style="color: {tag_color}; font-size: 11px; margin-left: 12px; font-weight: 600;">{tag}</span>'
+        html += f'<div style="margin-top: 6px; background-color: rgba(255,255,255,0.035); border-left: 3px solid {accent}; padding: 8px 12px; border-radius: 8px; font-family: Consolas; font-size: 12px; color: #E6E6EA;">'
         html += f'{content_escaped}'
         html += '</div></div>'
         
@@ -1244,7 +1404,7 @@ class MainWindow(QMainWindow):
 
     def add_system_msg(self, msg: str):
         time_str = datetime.now().strftime("%H:%M:%S")
-        html = f'<div style="text-align: center; margin: 12px 0;"><span style="background-color: #1a1a1a; color: #ffffff; padding: 6px 16px; border-radius: 16px; font-size: 11px;">[{time_str}] {msg}</span></div>'
+        html = f'<div style="text-align: center; margin: 12px 0;"><span style="background-color: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.07); color: #B4B4BC; padding: 6px 16px; border-radius: 16px; font-size: 11px;">[{time_str}] {msg}</span></div>'
         self.chat_box.append(html)
 
     # ---------- 分析功能 ----------
@@ -1277,8 +1437,9 @@ class MainWindow(QMainWindow):
         score = summary["score"]
         self.score_bar.setValue(score)
 
-        color = "#ffffff" if score >= 75 else "#dddddd" if score >= 60 else "#bbbbbb"
-        self.score_bar.setStyleSheet(f"QProgressBar::chunk {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {color}, stop:1 #999999); }}")
+        # 评分颜色随等级渐变：优秀→绿/靛蓝，合格→靛蓝，待优化→琥珀
+        color = "#34D399" if score >= 75 else "#6E82F5" if score >= 60 else "#FBBF24"
+        self.score_bar.setStyleSheet(f"QProgressBar::chunk {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {color}, stop:1 #2DD4BF); }}")
         self.score_label.setText(f"评分: {score}/100 [{summary['level']}]")
         self.score_label.setStyleSheet(f"color: {color}; font-weight: bold; font-size: 18px; margin-bottom: 12px;")
         self.issues_label.setText("\n".join(f"• {issue}" for issue in summary["issues"]))
@@ -1301,10 +1462,12 @@ class MainWindow(QMainWindow):
 
     def clear_rx(self):
         self.chat_box.clear()
+        self._rx_count = 0
         self.rx_label.setText("Rx: 0 Bytes")
 
     def clear_tx(self):
         self.send_input.clear()
+        self._tx_count = 0
         self.tx_label.setText("Tx: 0 Bytes")
 
     def safe_exit(self):

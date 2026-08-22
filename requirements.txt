@@ -1,0 +1,6 @@
+# 串口助手 & 随机数分析工具 依赖
+# 安装：python -m pip install -r requirements.txt
+PyQt6>=6.4.0
+pyqtgraph>=0.13.0
+pyserial>=3.5
+numpy>=1.21.0
