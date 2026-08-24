@@ -1,6 +1,7 @@
-# 串口助手 & 随机数分析工具 依赖
-# 安装：python -m pip install -r requirements.txt
-PyQt6>=6.4.0
-pyqtgraph>=0.13.0
+# 串口助手 & 随机数分析工具 依赖 (v2.0 Web UI)
+# 安装：python -m venv .venv && .venv/bin/pip install -r requirements.txt
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.5
 pyserial>=3.5
 numpy>=1.21.0

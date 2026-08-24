@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>串口助手 · 随机数分析</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="app" v-cloak>
+    <div class="app-shell">
+      <!-- ================= 侧边栏：串口配置 ================= -->
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">≋</div>
+          <div>
+            <div class="brand-title">串口助手</div>
+            <div class="brand-sub">Serial · Randomness Analyzer</div>
+          </div>
+        </div>
+
+        <div class="side-block">
+          <span class="field-label">数据源 / Source</span>
+          <div class="seg">
+            <button :class="['seg-btn', state.mode==='serial' && 'on']"
+                    @click="setMode('serial')">串口</button>
+            <button :class="['seg-btn', state.mode==='sim' && 'on']"
+                    @click="setMode('sim')">演示</button>
+          </div>
+        </div>
+
+        <div class="side-block" v-show="state.mode==='sim'">
+          <span class="field-label">演示模式 / Pattern</span>
+          <select v-model="state.pattern" class="field" @change="onPatternChange">
+            <option v-for="p in state.demoPatterns" :key="p.key" :value="p.key">{{ p.label }}</option>
+          </select>
+          <div class="demo-hint">无需串口，即可体验完整数据分析与图表。</div>
+        </div>
+
+        <div class="side-block" v-show="state.mode==='serial'">
+          <span class="field-label">串口端口 / Port</span>
+          <select v-model="state.port" class="field">
+            <option v-if="state.ports.length===0" value="">未检测到串口</option>
+            <option v-for="p in state.ports" :key="p.device" :value="p.device">
+              {{ p.device }} — {{ p.description }}
+            </option>
+          </select>
+        </div>
+
+        <div class="side-grid">
+          <div class="side-block">
+            <span class="field-label">波特率</span>
+            <select v-model.number="state.baud" class="field">
+              <option v-for="b in bauds" :key="b" :value="b">{{ b }}</option>
+            </select>
+          </div>
+          <div class="side-block">
+            <span class="field-label">数据位</span>
+            <select v-model.number="state.databits" class="field">
+              <option v-for="d in [5,6,7,8]" :key="d" :value="d">{{ d }}</option>
+            </select>
+          </div>
+          <div class="side-block">
+            <span class="field-label">校验位</span>
+            <select v-model="state.parity" class="field">
+              <option v-for="p in parityMap" :key="p.v" :value="p.v">{{ p.label }}</option>
+            </select>
+          </div>
+          <div class="side-block">
+            <span class="field-label">停止位</span>
+            <select v-model.number="state.stopbits" class="field">
+              <option v-for="s in [1,1.5,2]" :key="s" :value="s">{{ s }}</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="connect-btn" :class="state.connected && 'on'" @click="toggleConnect">
+          <span class="dot" :class="state.connected && 'green'"></span>
+          <span>{{ state.connected ? '断开连接' : '连接串口' }}</span>
+        </button>
+
+        <button class="ghost-btn" @click="scanPorts">⟳ 重新扫描</button>
+
+        <div class="side-footer">
+          <div class="mini-stat"><span>Rx</span><b>{{ fmtCount(state.rx) }}</b></div>
+          <div class="mini-stat"><span>Tx</span><b>{{ fmtCount(state.tx) }}</b></div>
+        </div>
+      </aside>
+
+      <!-- ================= 主内容区 ================= -->
+      <main class="main">
+        <!-- 顶部导航 -->
+        <header class="topbar">
+          <div class="crumb">串口助手<span class="crumb-sep">/</span>随机数分析</div>
+          <div class="top-right">
+            <span class="conn-pill" :class="state.connected ? 'live' : ''">
+              <i class="pill-dot"></i>
+              {{ state.connected ? (state.mode==='sim' ? '模拟连接' : '已连接') : '未连接' }}
+            </span>
+            <nav class="tabs">
+              <button :class="['tab', state.appMode==='terminal' && 'on']" @click="switchMode('terminal')">📡 终端收发</button>
+              <button :class="['tab', state.appMode==='analysis' && 'on']" @click="switchMode('analysis')">📊 随机数分析</button>
+            </nav>
+          </div>
+        </header>
+
+        <!-- 终端收发页 -->
+        <section v-show="state.appMode==='terminal'" class="page page-terminal">
+          <div class="terminal-card">
+            <div class="terminal-log" ref="logEl" @scroll="onLogScroll">
+              <div v-if="state.terminalLines.length===0" class="log-empty">
+                <div class="log-empty-ico">⤓</div>
+                等待数据… 连接后即可收发。
+              </div>
+              <div v-for="(line, i) in state.terminalLines" :key="i"
+                   class="log-line" :class="'role-' + line.role">
+                <span class="log-time">{{ line.time }}</span>
+                <span class="log-tag" :style="{color: line.color}">{{ line.tag }}</span>
+                <div class="log-body" v-html="line.html"></div>
+              </div>
+            </div>
+            <div v-if="!state.autoScroll" class="scroll-fab" @click="jumpToBottom">
+              ⬇ 回到底部
+            </div>
+          </div>
+
+          <!-- 底部：接收控制 + 发送区 -->
+          <div class="console">
+            <div class="console-col console-recv">
+              <div class="console-title">📥 接收控制</div>
+              <button class="tool-btn" @click="toggleRxFmt">{{ state.rxFormat==='HEX' ? '接收: HEX' : '接收: ASCII' }}</button>
+              <button class="tool-btn" :class="state.autoScroll && 'checked'" @click="toggleAutoScroll">📜 自动滚动</button>
+              <button v-show="!state.autoScroll" class="tool-btn accent" @click="jumpToBottom">⬇ 回到底部</button>
+              <button class="tool-btn" @click="exportData">💾 导出</button>
+              <button class="tool-btn" @click="clearRx">🗑️ 清空接收</button>
+              <div class="console-hint">上滑即可暂停自动滚动，方便查看历史数据。</div>
+            </div>
+
+            <div class="console-col console-send">
+              <div class="console-title">
+                📤 发送区
+                <label class="auto-send">
+                  <input type="checkbox" v-model="state.autoSend" @change="onAutoSend" />
+                  <span>自动发送</span>
+                </label>
+              </div>
+              <textarea v-model="state.sendText" class="send-input"
+                        placeholder="输入要发送的数据…" @keydown.ctrl.enter.prevent="sendData"></textarea>
+              <div class="send-row">
+                <button class="tool-btn" @click="toggleTxFmt">{{ state.txFormat }}</button>
+                <button class="tool-btn" @click="state.sendText=''">🗑️ 清空</button>
+                <button class="send-btn" :disabled="!state.connected" @click="sendData">发送</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 随机数分析页 -->
+        <section v-show="state.appMode==='analysis'" class="page page-analysis">
+          <div class="analysis-toolbar">
+            <label class="toolbar-label">分析最近</label>
+            <input type="number" v-model.number="state.analyzeSize" min="100" max="100000" step="100" class="num-input" />
+            <span class="unit">字节</span>
+            <button class="primary-btn" @click="manualAnalyze">🚀 立即分析</button>
+            <div class="toolbar-spacer"></div>
+            <span class="buffer-info">缓冲 {{ fmtCount(state.bufferLen) }} B</span>
+          </div>
+
+          <div class="analysis-split">
+            <!-- 左：评分 + 统计 -->
+            <div class="analysis-left">
+              <div class="score-card">
+                <div class="card-title">📊 综合评分</div>
+                <div class="score-value" :style="{color: scoreColor}">
+                  <span class="score-num">{{ state.score ? state.score.score : '--' }}</span>
+                  <span class="score-den">/100</span>
+                </div>
+                <div class="score-bar"><i :style="{width: (state.score?state.score.score:0)+'%', background: scoreBarBg}"></i></div>
+                <div class="score-level" :style="{color: scoreColor}">
+                  {{ state.score ? state.score.level : '等待分析' }}
+                </div>
+                <ul class="issues">
+                  <li v-if="!state.score">等待数据进行分析（需 ≥100 字节）。</li>
+                  <li v-for="(iss, i) in (state.score ? state.score.issues : [])" :key="i">• {{ iss }}</li>
+                </ul>
+              </div>
+
+              <div class="stats-card">
+                <div class="card-title">📈 实时统计</div>
+                <div class="stat-grid">
+                  <div class="stat-item" v-for="s in statItems" :key="s.key">
+                    <span class="stat-name">{{ s.label }}</span>
+                    <span class="stat-val">{{ fmtStat(state.stats[s.key]) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 右：图表 -->
+            <div class="analysis-right">
+              <div class="chart-tabs">
+                <button v-for="t in chartTabs" :key="t.key"
+                        :class="['chart-tab', state.activeChart===t.key && 'on']"
+                        @click="setChart(t.key)">{{ t.label }}</button>
+              </div>
+              <div class="chart-stage">
+                <div v-show="state.activeChart==='time'" id="chart-time" class="chart"></div>
+                <div v-show="state.activeChart==='hist'" id="chart-hist" class="chart"></div>
+                <div v-show="state.activeChart==='scatter'" id="chart-scatter" class="chart"></div>
+                <div v-show="state.activeChart==='autocorr'" id="chart-autocorr" class="chart"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/vendor/vue.global.prod.js"></script>
+  <script src="/vendor/echarts.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

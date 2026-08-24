@@ -44,19 +44,16 @@ QMainWindow, QWidget {
 
 /* ---------- 侧边栏：毛玻璃面板 ---------- */
 #sidebarFrame {
-<<<<<<< HEAD
     background: rgba(255, 255, 255, 0.028);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     border-top-right-radius: 22px;
     border-bottom-right-radius: 22px;
 }
 #sidebarTitle {
-<<<<<<< HEAD
     font-size: 20px; font-weight: 700; color: #ffffff;
     letter-spacing: 0.3px; margin-bottom: 4px;
 }
 #sidebarSubtitle {
-<<<<<<< HEAD
     font-size: 12px; color: #8C8C95; margin-bottom: 30px;
 }
 QLabel.formLabel {
